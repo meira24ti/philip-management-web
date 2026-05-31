@@ -12,6 +12,7 @@ import Loading from "./components/Loading";
 // Lazy Pages
 const Dashboard = React.lazy(() => import("./pages/Dashboard"));
 const Property = React.lazy(() => import("./pages/Property"));
+const PropertyDetail = React.lazy(() => import("./pages/PropertyDetail"));
 const Staff = React.lazy(() => import("./pages/Staff"));
 const Reports = React.lazy(() => import("./pages/Reports"));
 const Settings = React.lazy(() => import("./pages/Settings"));
@@ -60,6 +61,7 @@ function App() {
         >
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/property" element={<Property />} />
+          <Route path="/property/:id" element={<PropertyDetail />} />
           <Route path="/staff" element={<Staff />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />

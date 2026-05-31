@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { HiSearch, HiOutlineLocationMarker, HiTag, HiHome, HiChevronDown } from "react-icons/hi";
 import { BiFilterAlt } from "react-icons/bi";
 
@@ -58,7 +59,7 @@ function Dropdown({ label, options, value, setValue, open, setOpen, closeOthers 
         />
       </button>
       {open && (
-        <div className="absolute top-full mt-1 left-0 bg-white border border-red-100 rounded-xl shadow-xl z-20 min-w-[140px] overflow-hidden">
+        <div className="absolute top-full mt-1 left-0 bg-white border border-red-100 rounded-xl shadow-xl z-20 min-w-35 overflow-hidden">
           {options.map((opt) => (
             <button key={opt} onClick={() => { setValue(opt); setOpen(false); }}
               className={`w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-red-50 transition-colors ${value === opt ? "text-red-800 bg-red-50" : "text-gray-700"}`}>
@@ -73,12 +74,15 @@ function Dropdown({ label, options, value, setValue, open, setOpen, closeOthers 
 
 function PropertyCard({ p }) {
   return (
-    <div className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer group">
+    <Link
+      to={`/property/${p.id}`}
+      className="block rounded-2xl overflow-hidden bg-white shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-xl group"
+    >
       <div className="relative h-28 sm:h-36 md:h-40 overflow-hidden">
         <img src={p.image} alt={p.address}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           onError={(e) => { e.target.src = "https://placehold.co/400x300/8B0000/white?text=Foto"; }} />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+        <div className="absolute inset-0 bg-linear-to-t from-black/40 to-transparent" />
         <div className="absolute top-2 left-2">
           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${badgeStyle[p.badge] || "bg-gray-100 text-gray-700"}`}>
             {p.badge === "dijual" ? "Dijual" : p.badge === "sewa" ? "Sewa" : "Jual/Sewa"}
@@ -88,16 +92,16 @@ function PropertyCard({ p }) {
       <div className="p-3">
         <p className="text-[10px] sm:text-xs font-bold text-red-800 uppercase tracking-wide leading-tight mb-1">{p.status}</p>
         <div className="flex items-start gap-1 mb-1.5 text-red-400">
-          <span className="mt-0.5 flex-shrink-0"><HiOutlineLocationMarker size={14} /></span>
+          <span className="mt-0.5 shrink-0"><HiOutlineLocationMarker size={14} /></span>
           <span className="text-xs font-medium text-gray-600 leading-tight truncate">{p.address}</span>
         </div>
         <div className="flex items-center gap-1 text-red-500">
-          <span className="flex-shrink-0"><HiTag size={14} /></span>
+          <span className="shrink-0"><HiTag size={14} /></span>
           <p className="text-xs font-bold text-red-900 leading-tight truncate">{p.price}</p>
         </div>
         {p.priceRent && <p className="text-[10px] text-blue-600 font-semibold mt-0.5">Sewa: {p.priceRent}</p>}
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -163,7 +167,7 @@ export default function Dashboard() {
             <span className="hidden sm:block text-red-100 font-light text-2xl mx-1">|</span>
 
             <div className="flex items-center text-red-700 mr-2">
-              <BiFilterAlt size={20} className="mr-2 flex-shrink-0" />
+              <BiFilterAlt size={20} className="mr-2 shrink-0" />
               <span className="text-xs font-bold uppercase tracking-tight">Filter</span>
             </div>
 
