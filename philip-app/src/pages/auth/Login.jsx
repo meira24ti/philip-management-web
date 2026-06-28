@@ -1,11 +1,15 @@
+// philip-app/src/pages/auth/Login.jsx
+// — Update bagian handleSubmit 
+
 import { useState } from "react";
+import { useAuth } from "../../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
-import axios from "axios";
 import { BsFillExclamationDiamondFill } from "react-icons/bs";
 import { ImSpinner2 } from "react-icons/im";
 import { AiOutlineEye, AiOutlineEyeInvisible } from "react-icons/ai";
 
 export default function Login() {
+    const { login } = useAuth();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -28,25 +32,16 @@ export default function Login() {
         e.preventDefault();
         setLoading(true);
         setError("");
-
-        axios
-            .post("https://dummyjson.com/auth/login", {
-                // Triknya di sini: isi input email dikirim sebagai 'username' ke API
-                username: dataForm.email.trim(),
-                password: dataForm.password.trim(),
-                expiresInMins: 60,
-            })
-            .then((response) => {
-                localStorage.setItem("user", JSON.stringify(response.data));
-                window.location.href = "/";
-            })
-            .catch((err) => {
-                setError(err.response?.data?.message || "Email atau password salah!");
-            })
-            .finally(() => {
-                setLoading(false);
-            });
+        try {
+            await login(dataForm.email.trim(), dataForm.password.trim());
+            navigate("/dashboard");
+        } catch (err) {
+            setError(err.response?.data?.message || "Email atau password salah!");
+        } finally {
+            setLoading(false);
+        }
     };
+
 
     const errorInfo = error ? (
         <div className="bg-red-200 mb-5 p-4 text-sm font-medium text-red-800 rounded-lg flex items-center border border-red-300">
