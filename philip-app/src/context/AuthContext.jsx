@@ -13,6 +13,8 @@ export function AuthProvider({ children }) {
         const stored = localStorage.getItem("user");
         if (stored) {
             const parsed = JSON.parse(stored);
+            setUser(parsed);
+            setRole(parsed.role);
             authService.me()
                 .then(user => {
                     setUser({ ...parsed, ...user }); // update data terbaru

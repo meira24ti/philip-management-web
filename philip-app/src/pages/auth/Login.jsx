@@ -34,7 +34,7 @@ export default function Login() {
         setError("");
         try {
             await login(dataForm.email.trim(), dataForm.password.trim());
-            navigate("/dashboard");
+            window.location.href = "/dashboard";
         } catch (err) {
             setError(err.response?.data?.message || "Email atau password salah!");
         } finally {
@@ -78,7 +78,7 @@ export default function Login() {
                         value={dataForm.email}
                         onChange={handleChange}
                         className="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition-all"
-                        placeholder="Masukkan email (atau emilys)"
+                        placeholder="Masukkan email"
                         required
                     />
                 </div>

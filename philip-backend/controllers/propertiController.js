@@ -27,10 +27,10 @@ exports.getAll = async (req, res) => {
         v.nama_vendor, v.no_hp AS vendor_hp,
         u.nama AS listed_by_nama
       FROM properti p
-      LEFT JOIN tipe_properti tp ON tp.properti_id = p.id
-      LEFT JOIN foto_properti fp ON fp.properti_id = p.id AND fp.is_cover = 1
-      LEFT JOIN vendor v ON v.id = p.vendor_id
-      LEFT JOIN user   u ON u.id = p.listed_by
+      LEFT JOIN tipe_properti tp ON tp.id_tipeproperti = p.id_properti
+      LEFT JOIN foto_properti fp ON fp.id_fotoproperti = p.id_properti AND fp.is_cover = 1
+      LEFT JOIN vendor v ON v.id_vendor = p.id_properti
+      LEFT JOIN user   u ON u.id_user = p.listed_by
       WHERE 1=1`;
         const params = [];
 
@@ -73,10 +73,10 @@ exports.getById = async (req, res) => {
         const [rows] = await pool.query(`
       SELECT p.*, tp.*, v.nama_vendor, v.no_hp AS vendor_hp, u.nama AS listed_by_nama
       FROM properti p
-      LEFT JOIN tipe_properti tp ON tp.properti_id = p.id
-      LEFT JOIN vendor v ON v.id = p.vendor_id
-      LEFT JOIN user   u ON u.id = p.listed_by
-      WHERE p.id = ?
+      LEFT JOIN tipe_properti tp ON tp.properti_id = p.id_properti
+      LEFT JOIN vendor v ON v.id_vendor = p.id_properti
+      LEFT JOIN user   u ON u.id_user = p.listed_by
+      WHERE p.id_properti = ?
     `, [req.params.id]);
         if (!rows.length) return res.status(404).json({ message: "Properti tidak ditemukan" });
 
@@ -187,9 +187,9 @@ exports.getShareText = async (req, res) => {
         const [rows] = await pool.query(`
       SELECT p.*, tp.kategori, tp.subkategori, u.nama AS listed_by_nama
       FROM properti p
-      LEFT JOIN tipe_properti tp ON tp.properti_id = p.id
-      LEFT JOIN user u ON u.id = p.listed_by
-      WHERE p.id = ?
+      LEFT JOIN tipe_properti tp ON tp.properti_id = p.id_properti
+      LEFT JOIN user u ON u.id_user = p.listed_by
+      WHERE p.id_properti = ?
     `, [req.params.id]);
         if (!rows.length) return res.status(404).json({ message: "Properti tidak ditemukan" });
 

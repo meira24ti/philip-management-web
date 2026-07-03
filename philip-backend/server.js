@@ -9,6 +9,7 @@ const propertiRoutes = require("./routes/propertiRoutes");
 const staffRoutes = require("./routes/staffRoutes");
 const statistikRoutes = require("./routes/statistikRoutes");
 const laporanRoutes = require("./routes/laporanRoutes");
+const settingRoutes = require("./routes/settingRoutes");
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use("/api/properti", propertiRoutes);
 app.use("/api/staff", staffRoutes);
 app.use("/api/statistik", statistikRoutes);
 app.use("/api/laporan", laporanRoutes);
+app.use("/api/setting", settingRoutes);
 
 app.get("/", (req, res) => res.json({ status: "Philip API running" }));
 

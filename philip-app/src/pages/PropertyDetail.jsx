@@ -6,6 +6,7 @@ import {
   HiOutlineChevronLeft, HiOutlineChevronRight
 } from "react-icons/hi";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../components/Toast"; // ✅ TAMBAHAN
 import { propertiService } from "../services/propertiService";
 import { generateFlyerPNG, downloadFlyer } from "../utils/generateFlyer";
 
@@ -34,6 +35,7 @@ const unitLabel = {
 export default function PropertyDetail() {
   const { id } = useParams();
   const { role } = useAuth();
+  const { showToast } = useToast(); // ✅ TAMBAHAN
   const config = ROLE_CONFIG[role] || {};
 
   // State
@@ -54,6 +56,7 @@ export default function PropertyDetail() {
       .catch(err => {
         console.error(err);
         setError("Gagal memuat data properti.");
+        showToast("Gagal memuat data properti", "error"); // ✅ TAMBAHAN
       })
       .finally(() => setLoading(false));
   }, [id]);
@@ -64,8 +67,9 @@ export default function PropertyDetail() {
       const { shareText, waLink } = await propertiService.getShareText(id);
       await navigator.clipboard.writeText(shareText);
       window.open(waLink, "_blank");
+      showToast("Info properti berhasil disalin ke clipboard", "success"); // ✅ TAMBAHAN
     } catch {
-      alert("Gagal menyalin info properti");
+      showToast("Gagal menyalin info properti", "error"); // ✅ TAMBAHAN (ganti alert)
     }
   };
 
@@ -75,8 +79,10 @@ export default function PropertyDetail() {
       const data = await propertiService.getById(id);
       const blob = await generateFlyerPNG(data);
       downloadFlyer(blob, `flyer-${data.no_folder || data.id}.png`);
+      showToast("Flyer berhasil didownload", "success"); // ✅ TAMBAHAN
     } catch (err) {
       console.error("Gagal generate flyer:", err);
+      showToast("Gagal membuat flyer", "error"); // ✅ TAMBAHAN
     }
   };
 
@@ -416,10 +422,11 @@ export default function PropertyDetail() {
                 onClick={async () => {
                   try {
                     await propertiService.remove(p.id);
+                    showToast("Properti berhasil dihapus", "success"); // ✅ TAMBAHAN
                     setShowDeleteModal(false);
                     window.location.href = "/property";
                   } catch (err) {
-                    alert("Gagal menghapus properti");
+                    showToast("Gagal menghapus properti", "error"); // ✅ TAMBAHAN (ganti alert)
                   }
                 }}
                 className="btn btn-sm btn-error text-white rounded-xl"

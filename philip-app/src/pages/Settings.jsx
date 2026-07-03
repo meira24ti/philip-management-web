@@ -1,43 +1,226 @@
-import { useState } from "react";
-import { HiOutlineCog, HiOutlineOfficeBuilding, HiOutlineUser,
-  HiOutlineLockClosed, HiOutlinePhotograph, HiOutlineEye, HiOutlineEyeOff } from "react-icons/hi";
-
-const CURRENT_ROLE = "admin";
+// philip-app/src/pages/Settings.jsx
+import { useState, useEffect } from "react";
+import {
+  HiOutlineCog, HiOutlineOfficeBuilding, HiOutlineUser,
+  HiOutlineLockClosed, HiOutlinePhotograph, HiOutlineEye, HiOutlineEyeOff
+} from "react-icons/hi";
+import { useAuth } from "../context/AuthContext";
+import { useToast } from "../components/Toast";
+import { settingService } from "../services/settingService";
+import { authService } from "../services/authService";
 
 export default function Settings() {
-  const [activeTab,    setActiveTab]    = useState("perusahaan");
-  const [showOldPw,    setShowOldPw]    = useState(false);
-  const [showNewPw,    setShowNewPw]    = useState(false);
-  const [saved,        setSaved]        = useState(false);
+  const { user } = useAuth();
+  const { showToast } = useToast();
 
-  // Company data state
+  // ─── State ──────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState("perusahaan");
+  const [showOldPw, setShowOldPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState({
+    company: false,
+    profile: false,
+    password: false,
+    logo: false,
+    foto: false,
+  });
+
+  // ─── Company state ──────────────────────────────────────
   const [company, setCompany] = useState({
-    name:    "Philip Real Estate",
+    company_name: "Philip Real Estate",
     tagline: "JUAL · BELI · SEWA · KPR",
-    city:    "Pekanbaru, Riau",
-    phone:   "0761-XXXXXXX",
-    heroTitle:"Build Your Future",
-    heroSub: "with us",
-    heroDesc:"Mulai langkah besar dari keputusan hari ini.",
+    city: "Pekanbaru, Riau",
+    phone: "0761-XXXXXXX",
+    hero_title: "Build Your Future",
+    hero_sub: "with us",
+    hero_desc: "Mulai langkah besar dari keputusan hari ini.",
+    company_logo: null,
   });
 
-  // Profile state
+  // ─── Profile state ──────────────────────────────────────
   const [profile, setProfile] = useState({
-    nama:  "Lorenza Estrada",
-    email: "lorenza@philip.co.id",
-    noHp:  "08123456789",
-    role:  "Admin",
+    nama: "",
+    email: "",
+    no_hp: "",
+    role: "",
+    foto_profil: null,
   });
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+  // ─── Password state ─────────────────────────────────────
+  const [passwordData, setPasswordData] = useState({
+    oldPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+
+  // ─── File upload refs ──────────────────────────────────
+  const [logoFile, setLogoFile] = useState(null);
+  const [fotoFile, setFotoFile] = useState(null);
+
+  // ─── Load data ──────────────────────────────────────────
+  useEffect(() => {
+    // Load settings dari API
+    const loadSettings = async () => {
+      try {
+        const data = await settingService.getAll();
+        setCompany(prev => ({
+          ...prev,
+          ...data,
+          company_logo: data.company_logo || null,
+        }));
+      } catch (err) {
+        console.error(err);
+        showToast("Gagal memuat pengaturan", "error");
+      }
+    };
+
+    loadSettings();
+  }, []);
+
+  // Load profil dari user context
+  useEffect(() => {
+    if (user) {
+      setProfile({
+        nama: user.nama || "",
+        email: user.email || "",
+        no_hp: user.no_hp || "",
+        role: user.role || "",
+        foto_profil: user.foto_profil || null,
+      });
+    }
+  }, [user]);
+
+  // ─── Handlers ────────────────────────────────────────────
+  const handleCompanyChange = (e) => {
+    const { name, value } = e.target;
+    setCompany(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleProfileChange = (e) => {
+    const { name, value } = e.target;
+    setProfile(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handlePasswordChange = (e) => {
+    const { name, value } = e.target;
+    setPasswordData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleLogoFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setLogoFile(e.target.files[0]);
+    }
+  };
+
+  const handleFotoFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setFotoFile(e.target.files[0]);
+    }
+  };
+
+  // ─── Save Company ──────────────────────────────────────
+  const handleSaveCompany = async () => {
+    try {
+      setLoading(prev => ({ ...prev, company: true }));
+
+      // Upload logo jika ada
+      if (logoFile) {
+        await settingService.uploadLogo(logoFile);
+        setLogoFile(null);
+      }
+
+      // Update setting
+      const updateData = {
+        company_name: company.company_name,
+        tagline: company.tagline,
+        city: company.city,
+        phone: company.phone,
+        hero_title: company.hero_title,
+        hero_sub: company.hero_sub,
+        hero_desc: company.hero_desc,
+      };
+      await settingService.update(updateData);
+
+      showToast("Pengaturan perusahaan berhasil disimpan", "success");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      showToast(err.response?.data?.message || "Gagal menyimpan pengaturan", "error");
+    } finally {
+      setLoading(prev => ({ ...prev, company: false }));
+    }
+  };
+
+  // ─── Save Profile ──────────────────────────────────────
+  const handleSaveProfile = async () => {
+    try {
+      setLoading(prev => ({ ...prev, profile: true }));
+
+      // Upload foto jika ada
+      if (fotoFile) {
+        await authService.uploadFoto(fotoFile);
+        setFotoFile(null);
+      }
+
+      // Update profile
+      await authService.updateProfile({
+        nama: profile.nama,
+        no_hp: profile.no_hp,
+      });
+
+      showToast("Profil berhasil diperbarui", "success");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      showToast(err.response?.data?.message || "Gagal memperbarui profil", "error");
+    } finally {
+      setLoading(prev => ({ ...prev, profile: false }));
+    }
+  };
+
+  // ─── Change Password ──────────────────────────────────
+  const handleChangePassword = async () => {
+    try {
+      // Validasi
+      if (!passwordData.oldPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+        showToast("Semua field password wajib diisi", "error");
+        return;
+      }
+
+      if (passwordData.newPassword.length < 8) {
+        showToast("Password baru minimal 8 karakter", "error");
+        return;
+      }
+
+      if (passwordData.newPassword !== passwordData.confirmPassword) {
+        showToast("Konfirmasi password tidak sesuai", "error");
+        return;
+      }
+
+      setLoading(prev => ({ ...prev, password: true }));
+
+      await authService.changePassword({
+        oldPassword: passwordData.oldPassword,
+        newPassword: passwordData.newPassword,
+      });
+
+      showToast("Password berhasil diubah", "success");
+      setPasswordData({ oldPassword: "", newPassword: "", confirmPassword: "" });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      showToast(err.response?.data?.message || "Gagal mengubah password", "error");
+    } finally {
+      setLoading(prev => ({ ...prev, password: false }));
+    }
+  };
+
+  // ─── Tab config ──────────────────────────────────────────
   const tabs = [
-    { id:"perusahaan", label:"Perusahaan",  icon: HiOutlineOfficeBuilding },
-    { id:"profil",     label:"Profil Saya", icon: HiOutlineUser           },
-    { id:"keamanan",   label:"Keamanan",    icon: HiOutlineLockClosed     },
+    { id: "perusahaan", label: "Perusahaan", icon: HiOutlineOfficeBuilding },
+    { id: "profil", label: "Profil Saya", icon: HiOutlineUser },
+    { id: "keamanan", label: "Keamanan", icon: HiOutlineLockClosed },
   ];
 
   return (
@@ -52,8 +235,11 @@ export default function Settings() {
       {/* ── Tabs ── */}
       <div className="tabs tabs-boxed bg-red-50 p-1 rounded-xl w-fit gap-1">
         {tabs.map(t => (
-          <button key={t.id} onClick={() => setActiveTab(t.id)}
-            className={`tab gap-1.5 rounded-lg text-sm font-semibold transition-all ${activeTab===t.id ? "tab-active bg-red-800 text-white shadow" : "text-gray-600 hover:text-red-800"}`}>
+          <button
+            key={t.id}
+            onClick={() => setActiveTab(t.id)}
+            className={`tab gap-1.5 rounded-lg text-sm font-semibold transition-all ${activeTab === t.id ? "tab-active bg-red-800 text-white shadow" : "text-gray-600 hover:text-red-800"}`}
+          >
             <t.icon size={15} />
             {t.label}
           </button>
@@ -70,23 +256,43 @@ export default function Settings() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <label className="form-control">
                 <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Nama Perusahaan *</span></div>
-                <input type="text" className="input input-bordered input-sm rounded-xl"
-                  value={company.name} onChange={e=>setCompany({...company,name:e.target.value})} />
+                <input
+                  type="text"
+                  name="company_name"
+                  className="input input-bordered input-sm rounded-xl"
+                  value={company.company_name}
+                  onChange={handleCompanyChange}
+                />
               </label>
               <label className="form-control">
                 <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Tagline</span></div>
-                <input type="text" className="input input-bordered input-sm rounded-xl"
-                  value={company.tagline} onChange={e=>setCompany({...company,tagline:e.target.value})} />
+                <input
+                  type="text"
+                  name="tagline"
+                  className="input input-bordered input-sm rounded-xl"
+                  value={company.tagline}
+                  onChange={handleCompanyChange}
+                />
               </label>
               <label className="form-control">
                 <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Kota / Lokasi</span></div>
-                <input type="text" className="input input-bordered input-sm rounded-xl"
-                  value={company.city} onChange={e=>setCompany({...company,city:e.target.value})} />
+                <input
+                  type="text"
+                  name="city"
+                  className="input input-bordered input-sm rounded-xl"
+                  value={company.city}
+                  onChange={handleCompanyChange}
+                />
               </label>
               <label className="form-control">
                 <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Nomor Telepon</span></div>
-                <input type="text" className="input input-bordered input-sm rounded-xl"
-                  value={company.phone} onChange={e=>setCompany({...company,phone:e.target.value})} />
+                <input
+                  type="text"
+                  name="phone"
+                  className="input input-bordered input-sm rounded-xl"
+                  value={company.phone}
+                  onChange={handleCompanyChange}
+                />
               </label>
             </div>
 
@@ -95,44 +301,87 @@ export default function Settings() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <label className="form-control">
                 <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Judul Hero</span></div>
-                <input type="text" className="input input-bordered input-sm rounded-xl"
-                  value={company.heroTitle} onChange={e=>setCompany({...company,heroTitle:e.target.value})} />
+                <input
+                  type="text"
+                  name="hero_title"
+                  className="input input-bordered input-sm rounded-xl"
+                  value={company.hero_title}
+                  onChange={handleCompanyChange}
+                />
               </label>
               <label className="form-control">
                 <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Sub Judul (italic)</span></div>
-                <input type="text" className="input input-bordered input-sm rounded-xl"
-                  value={company.heroSub} onChange={e=>setCompany({...company,heroSub:e.target.value})} />
+                <input
+                  type="text"
+                  name="hero_sub"
+                  className="input input-bordered input-sm rounded-xl"
+                  value={company.hero_sub}
+                  onChange={handleCompanyChange}
+                />
               </label>
               <label className="form-control">
                 <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Deskripsi</span></div>
-                <input type="text" className="input input-bordered input-sm rounded-xl"
-                  value={company.heroDesc} onChange={e=>setCompany({...company,heroDesc:e.target.value})} />
+                <input
+                  type="text"
+                  name="hero_desc"
+                  className="input input-bordered input-sm rounded-xl"
+                  value={company.hero_desc}
+                  onChange={handleCompanyChange}
+                />
               </label>
             </div>
 
             <div className="divider text-xs text-gray-400">Logo Perusahaan</div>
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-red-700 to-red-900 rounded-2xl flex items-center justify-center shadow">
-                <span className="text-white font-bold text-2xl font-serif">P</span>
+              <div className="w-16 h-16 bg-gradient-to-br from-red-700 to-red-900 rounded-2xl flex items-center justify-center shadow overflow-hidden">
+                {company.company_logo ? (
+                  <img
+                    src={company.company_logo}
+                    alt="Logo"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-white font-bold text-2xl font-serif">P</span>
+                )}
               </div>
               <div>
                 <p className="text-sm font-semibold text-gray-700">Upload Logo</p>
                 <p className="text-xs text-gray-400 mb-2">Format PNG/JPG, maks 2MB, disarankan 200×200px</p>
-                <input type="file" accept="image/*" className="file-input file-input-bordered file-input-sm file-input-error rounded-xl w-full max-w-xs" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="file-input file-input-bordered file-input-sm file-input-error rounded-xl w-full max-w-xs"
+                  onChange={handleLogoFileChange}
+                />
+                {logoFile && (
+                  <p className="text-xs text-green-600 mt-1">✓ {logoFile.name} siap diupload</p>
+                )}
               </div>
             </div>
 
             {/* Preview mini */}
             <div className="bg-red-950 rounded-xl p-4 mt-1">
-              <p className="text-red-300 text-[10px] uppercase tracking-widest mb-1">{company.name} · {company.city}</p>
-              <p className="text-white text-lg font-bold font-serif">{company.heroTitle}</p>
-              <p className="text-red-300 text-sm italic">{company.heroSub}</p>
-              <p className="text-red-200 text-xs mt-1">{company.heroDesc}</p>
+              <p className="text-red-300 text-[10px] uppercase tracking-widest mb-1">
+                {company.company_name} · {company.city}
+              </p>
+              <p className="text-white text-lg font-bold font-serif">{company.hero_title}</p>
+              <p className="text-red-300 text-sm italic">{company.hero_sub}</p>
+              <p className="text-red-200 text-xs mt-1">{company.hero_desc}</p>
             </div>
 
             <div className="flex justify-end mt-2">
-              <button onClick={handleSave} className="btn btn-sm btn-error text-white rounded-xl shadow gap-2">
-                {saved ? "✓ Tersimpan!" : "Simpan Perubahan"}
+              <button
+                onClick={handleSaveCompany}
+                disabled={loading.company}
+                className="btn btn-sm btn-error text-white rounded-xl shadow gap-2"
+              >
+                {loading.company ? (
+                  <><span className="loading loading-spinner loading-xs" /> Menyimpan...</>
+                ) : saved ? (
+                  "✓ Tersimpan!"
+                ) : (
+                  "Simpan Perubahan"
+                )}
               </button>
             </div>
           </div>
@@ -147,13 +396,29 @@ export default function Settings() {
 
             {/* Avatar */}
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-700 to-red-900 flex items-center justify-center text-white text-xl font-bold shadow">
-                LE
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-700 to-red-900 flex items-center justify-center text-white text-xl font-bold shadow overflow-hidden">
+                {profile.foto_profil ? (
+                  <img
+                    src={profile.foto_profil}
+                    alt={profile.nama}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  profile.nama?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "U"
+                )}
               </div>
               <div>
                 <p className="text-sm font-semibold text-gray-700">Foto Profil</p>
                 <p className="text-xs text-gray-400 mb-2">Format PNG/JPG, maks 2MB</p>
-                <input type="file" accept="image/*" className="file-input file-input-bordered file-input-sm file-input-error rounded-xl w-full max-w-xs" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="file-input file-input-bordered file-input-sm file-input-error rounded-xl w-full max-w-xs"
+                  onChange={handleFotoFileChange}
+                />
+                {fotoFile && (
+                  <p className="text-xs text-green-600 mt-1">✓ {fotoFile.name} siap diupload</p>
+                )}
               </div>
             </div>
 
@@ -162,29 +427,57 @@ export default function Settings() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <label className="form-control">
                 <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Nama Lengkap</span></div>
-                <input type="text" className="input input-bordered input-sm rounded-xl"
-                  value={profile.nama} onChange={e=>setProfile({...profile,nama:e.target.value})} />
+                <input
+                  type="text"
+                  name="nama"
+                  className="input input-bordered input-sm rounded-xl"
+                  value={profile.nama}
+                  onChange={handleProfileChange}
+                />
               </label>
               <label className="form-control">
                 <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Email</span></div>
-                <input type="email" className="input input-bordered input-sm rounded-xl"
-                  value={profile.email} onChange={e=>setProfile({...profile,email:e.target.value})} />
+                <input
+                  type="email"
+                  className="input input-bordered input-sm rounded-xl bg-gray-50"
+                  value={profile.email}
+                  disabled
+                />
               </label>
               <label className="form-control">
                 <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Nomor HP</span></div>
-                <input type="tel" className="input input-bordered input-sm rounded-xl"
-                  value={profile.noHp} onChange={e=>setProfile({...profile,noHp:e.target.value})} />
+                <input
+                  type="tel"
+                  name="no_hp"
+                  className="input input-bordered input-sm rounded-xl"
+                  value={profile.no_hp}
+                  onChange={handleProfileChange}
+                />
               </label>
               <label className="form-control">
                 <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Role</span></div>
-                <input type="text" className="input input-bordered input-sm rounded-xl bg-gray-50"
-                  value={profile.role} disabled />
+                <input
+                  type="text"
+                  className="input input-bordered input-sm rounded-xl bg-gray-50"
+                  value={profile.role}
+                  disabled
+                />
               </label>
             </div>
 
             <div className="flex justify-end mt-2">
-              <button onClick={handleSave} className="btn btn-sm btn-error text-white rounded-xl shadow">
-                {saved ? "✓ Tersimpan!" : "Simpan Profil"}
+              <button
+                onClick={handleSaveProfile}
+                disabled={loading.profile}
+                className="btn btn-sm btn-error text-white rounded-xl shadow"
+              >
+                {loading.profile ? (
+                  <><span className="loading loading-spinner loading-xs" /> Menyimpan...</>
+                ) : saved ? (
+                  "✓ Tersimpan!"
+                ) : (
+                  "Simpan Profil"
+                )}
               </button>
             </div>
           </div>
@@ -199,33 +492,67 @@ export default function Settings() {
             <label className="form-control">
               <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Password Lama</span></div>
               <div className="relative">
-                <input type={showOldPw ? "text" : "password"} placeholder="••••••••"
-                  className="input input-bordered input-sm rounded-xl w-full pr-10" />
-                <button type="button" onClick={()=>setShowOldPw(!showOldPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                  {showOldPw ? <HiOutlineEyeOff size={16}/> : <HiOutlineEye size={16}/>}
+                <input
+                  type={showOldPw ? "text" : "password"}
+                  name="oldPassword"
+                  placeholder="••••••••"
+                  className="input input-bordered input-sm rounded-xl w-full pr-10"
+                  value={passwordData.oldPassword}
+                  onChange={handlePasswordChange}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowOldPw(!showOldPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                >
+                  {showOldPw ? <HiOutlineEyeOff size={16} /> : <HiOutlineEye size={16} />}
                 </button>
               </div>
             </label>
             <label className="form-control">
               <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Password Baru</span></div>
               <div className="relative">
-                <input type={showNewPw ? "text" : "password"} placeholder="Min. 8 karakter"
-                  className="input input-bordered input-sm rounded-xl w-full pr-10" />
-                <button type="button" onClick={()=>setShowNewPw(!showNewPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                  {showNewPw ? <HiOutlineEyeOff size={16}/> : <HiOutlineEye size={16}/>}
+                <input
+                  type={showNewPw ? "text" : "password"}
+                  name="newPassword"
+                  placeholder="Min. 8 karakter"
+                  className="input input-bordered input-sm rounded-xl w-full pr-10"
+                  value={passwordData.newPassword}
+                  onChange={handlePasswordChange}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPw(!showNewPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                >
+                  {showNewPw ? <HiOutlineEyeOff size={16} /> : <HiOutlineEye size={16} />}
                 </button>
               </div>
             </label>
             <label className="form-control">
               <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Konfirmasi Password Baru</span></div>
-              <input type="password" placeholder="Ulangi password baru"
-                className="input input-bordered input-sm rounded-xl w-full" />
+              <input
+                type="password"
+                name="confirmPassword"
+                placeholder="Ulangi password baru"
+                className="input input-bordered input-sm rounded-xl w-full"
+                value={passwordData.confirmPassword}
+                onChange={handlePasswordChange}
+              />
             </label>
             <div className="mt-2">
-              <button onClick={handleSave} className="btn btn-sm btn-error text-white rounded-xl shadow">
-                {saved ? "✓ Password diubah!" : "Ganti Password"}
+              <button
+                onClick={handleChangePassword}
+                disabled={loading.password}
+                className="btn btn-sm btn-error text-white rounded-xl shadow"
+              >
+                {loading.password ? (
+                  <><span className="loading loading-spinner loading-xs" /> Memproses...</>
+                ) : saved ? (
+                  "✓ Password diubah!"
+                ) : (
+                  "Ganti Password"
+                )}
               </button>
             </div>
           </div>

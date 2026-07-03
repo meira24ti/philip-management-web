@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+// philip-app/src/pages/Staff.jsx
+import { useMemo, useState, useEffect } from "react";
 import {
   HiChevronDown,
   HiOutlineBan,
@@ -10,18 +11,11 @@ import {
   HiSearch,
   HiX,
 } from "react-icons/hi";
+import { useAuth } from "../context/AuthContext";
+import { useToast } from "../components/Toast";
+import { staffService } from "../services/staffService";
 
-const CURRENT_ROLE = "admin"; // "admin" | "direktur" | "marketing"
-
-const staffList = [
-  { id: 1, nama: "Lorenza Estrada", email: "lorenza@philip.co.id", role: "admin", noHp: "08123456789", isActive: true, foto: null },
-  { id: 2, nama: "Rina Wati", email: "rina@philip.co.id", role: "marketing", noHp: "08234567890", isActive: true, foto: null },
-  { id: 3, nama: "Budi Santoso", email: "budi@philip.co.id", role: "marketing", noHp: "08345678901", isActive: true, foto: null },
-  { id: 4, nama: "Hendra Kurnia", email: "hendra@philip.co.id", role: "direktur", noHp: "08456789012", isActive: true, foto: null },
-  { id: 5, nama: "Sari Dewi", email: "sari@philip.co.id", role: "marketing", noHp: "08567890123", isActive: false, foto: null },
-  { id: 6, nama: "Ahmad Fauzi", email: "ahmad@philip.co.id", role: "admin", noHp: "08678901234", isActive: false, foto: null },
-];
-
+// ─── CONSTANTS ──────────────────────────────────────────────
 const roleLabel = { admin: "Admin", marketing: "Marketing", direktur: "Direktur" };
 const roleTitle = {
   admin: "Administrator Sistem",
@@ -31,25 +25,26 @@ const roleTitle = {
 const roleBadge = { admin: "badge-error", marketing: "badge-info", direktur: "badge-warning" };
 const roleOrder = ["direktur", "admin", "marketing"];
 
-const normalizePhone = (phone) => phone.replace(/\D/g, "");
+const normalizePhone = (phone) => (phone || "").replace(/\D/g, "");
 const whatsappNumber = (phone) => {
   const normalized = normalizePhone(phone);
-  return normalized.startsWith("0") ? `62${normalized.slice(1)}` : normalized;
+  return normalized.startsWith("0") ? `62${normalized.slice(1)}` : normalized || "";
 };
 
+// ─── AVATAR COMPONENT ──────────────────────────────────────
 function Avatar({ staff }) {
   const initials = staff.nama
-    .split(" ")
+    ?.split(" ")
     .map((name) => name[0])
     .join("")
     .slice(0, 2)
-    .toUpperCase();
+    .toUpperCase() || "?";
 
   return (
     <div className="avatar">
       <div className="w-16 rounded-2xl bg-gradient-to-br from-red-700 to-red-950 text-white shadow-md ring ring-red-100 ring-offset-2">
-        {staff.foto ? (
-          <img src={staff.foto} alt={staff.nama} />
+        {staff.foto_profil ? (
+          <img src={staff.foto_profil} alt={staff.nama} />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-lg font-bold">
             {initials}
@@ -60,16 +55,17 @@ function Avatar({ staff }) {
   );
 }
 
-function StaffCard({ staff, canManage, onDeactivate, compact = false }) {
-  const phone = normalizePhone(staff.noHp);
-  const wa = whatsappNumber(staff.noHp);
+// ─── STAFF CARD ─────────────────────────────────────────────
+function StaffCard({ staff, canManage, onEdit, onDeactivate, compact = false }) {
+  const phone = normalizePhone(staff.no_hp);
+  const wa = whatsappNumber(staff.no_hp);
 
   return (
     <div
       className={[
         "card bg-base-100 border shadow-sm transition-all duration-200",
         "hover:-translate-y-1 hover:shadow-lg",
-        staff.isActive ? "border-red-50" : "border-gray-100 opacity-70",
+        staff.is_active ? "border-red-50" : "border-gray-100 opacity-70",
         compact ? "w-72 shrink-0 snap-start" : "w-full",
       ].join(" ")}
     >
@@ -84,17 +80,17 @@ function StaffCard({ staff, canManage, onDeactivate, compact = false }) {
                   {staff.nama}
                 </h3>
                 <p className="text-sm font-medium text-red-800">
-                  {roleTitle[staff.role]}
+                  {roleTitle[staff.role] || staff.role}
                 </p>
               </div>
 
-              <span className={`badge badge-sm ${roleBadge[staff.role]} shrink-0 text-white`}>
-                {roleLabel[staff.role]}
+              <span className={`badge badge-sm ${roleBadge[staff.role] || "badge-ghost"} shrink-0 text-white`}>
+                {roleLabel[staff.role] || staff.role}
               </span>
             </div>
 
-            <span className={`badge badge-sm mt-2 ${staff.isActive ? "badge-success" : "badge-ghost"}`}>
-              {staff.isActive ? "Aktif" : "Nonaktif"}
+            <span className={`badge badge-sm mt-2 ${staff.is_active ? "badge-success" : "badge-ghost"}`}>
+              {staff.is_active ? "Aktif" : "Nonaktif"}
             </span>
           </div>
         </div>
@@ -102,7 +98,7 @@ function StaffCard({ staff, canManage, onDeactivate, compact = false }) {
         <div className="space-y-2 rounded-2xl bg-red-50/60 p-3">
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <HiOutlinePhone className="shrink-0 text-red-700" size={16} />
-            <span className="font-mono text-xs">{staff.noHp}</span>
+            <span className="font-mono text-xs">{staff.no_hp || "-"}</span>
           </div>
 
           <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -130,9 +126,12 @@ function StaffCard({ staff, canManage, onDeactivate, compact = false }) {
             </a>
           </div>
 
-          {canManage && staff.isActive && (
+          {canManage && staff.is_active && (
             <div className="flex gap-1">
-              <button className="btn btn-xs btn-ghost rounded-lg text-blue-500 hover:bg-blue-50">
+              <button
+                onClick={() => onEdit(staff)}
+                className="btn btn-xs btn-ghost rounded-lg text-blue-500 hover:bg-blue-50"
+              >
                 <HiOutlinePencil size={14} />
               </button>
 
@@ -150,7 +149,8 @@ function StaffCard({ staff, canManage, onDeactivate, compact = false }) {
   );
 }
 
-function RoleSection({ role, staff, canManage, onDeactivate }) {
+// ─── ROLE SECTION ──────────────────────────────────────────
+function RoleSection({ role, staff, canManage, onEdit, onDeactivate }) {
   const isMarketing = role === "marketing";
 
   if (staff.length === 0) return null;
@@ -159,14 +159,14 @@ function RoleSection({ role, staff, canManage, onDeactivate }) {
     <section className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold text-red-900">{roleLabel[role]}</h2>
+          <h2 className="text-lg font-bold text-red-900">{roleLabel[role] || role}</h2>
           <p className="text-sm text-gray-500">
-            {staff.length} staff {roleLabel[role].toLowerCase()}
+            {staff.length} staff {roleLabel[role]?.toLowerCase() || role}
           </p>
         </div>
 
-        <span className={`badge ${roleBadge[role]} text-white`}>
-          {roleLabel[role]}
+        <span className={`badge ${roleBadge[role] || "badge-ghost"} text-white`}>
+          {roleLabel[role] || role}
         </span>
       </div>
 
@@ -177,6 +177,7 @@ function RoleSection({ role, staff, canManage, onDeactivate }) {
               key={member.id}
               staff={member}
               canManage={canManage}
+              onEdit={onEdit}
               onDeactivate={onDeactivate}
               compact
             />
@@ -189,6 +190,7 @@ function RoleSection({ role, staff, canManage, onDeactivate }) {
               key={member.id}
               staff={member}
               canManage={canManage}
+              onEdit={onEdit}
               onDeactivate={onDeactivate}
             />
           ))}
@@ -198,30 +200,69 @@ function RoleSection({ role, staff, canManage, onDeactivate }) {
   );
 }
 
+// ─── MAIN COMPONENT ────────────────────────────────────────
 export default function Staff() {
+  const { role } = useAuth(); // ✅ Ambil role dari context
+  const { showToast } = useToast();
+
+  // ─── State ──────────────────────────────────────────────
+  const [staffData, setStaffData] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("Semua");
   const [statusFilter, setStatus] = useState("Aktif");
   const [showModal, setShowModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
-  const [staffData, setStaffData] = useState(staffList);
   const [roleOpen, setRoleOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
 
-  const canManage = ["admin", "direktur"].includes(CURRENT_ROLE);
+  // ─── Form state ──────────────────────────────────────────
+  const [formData, setFormData] = useState({
+    nama: "",
+    email: "",
+    no_hp: "",
+    role: "",
+  });
 
+  // ✅ Gunakan role dari useAuth()
+  const canManage = ["admin", "direktur"].includes(role);
+
+  // ─── Fetch data ──────────────────────────────────────────
+  const fetchStaff = async () => {
+    try {
+      setLoading(true);
+      const data = await staffService.getAll();
+      setStaffData(data);
+    } catch (err) {
+      console.error(err);
+      showToast("Gagal memuat data staff", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ Load data di useEffect
+  useEffect(() => {
+    fetchStaff();
+  }, []);
+
+  // ─── Stats ──────────────────────────────────────────────
   const stats = useMemo(() => ({
     total: staffData.length,
-    marketing: staffData.filter((staff) => staff.role === "marketing").length,
-    admin: staffData.filter((staff) => staff.role === "admin").length,
-    direktur: staffData.filter((staff) => staff.role === "direktur").length,
+    marketing: staffData.filter((s) => s.role === "marketing").length,
+    admin: staffData.filter((s) => s.role === "admin").length,
+    direktur: staffData.filter((s) => s.role === "direktur").length,
   }), [staffData]);
 
+  // ─── Filtering ──────────────────────────────────────────
   const filtered = staffData.filter((staff) => {
     const q = search.toLowerCase();
-    const matchQ = staff.nama.toLowerCase().includes(q) || staff.email.toLowerCase().includes(q);
+    const matchQ = staff.nama?.toLowerCase().includes(q) || staff.email?.toLowerCase().includes(q) || false;
     const matchR = roleFilter === "Semua" || staff.role === roleFilter;
-    const matchS = statusFilter === "Semua" || (statusFilter === "Aktif" ? staff.isActive : !staff.isActive);
+    const matchS = statusFilter === "Semua" ||
+      (statusFilter === "Aktif" ? staff.is_active : !staff.is_active);
     return matchQ && matchR && matchS;
   });
 
@@ -230,19 +271,79 @@ export default function Staff() {
     return groups;
   }, {});
 
+  // ─── Handlers ────────────────────────────────────────────
   const handleConfirmDeactivate = (id) => {
     setConfirmId(id);
-    document.getElementById("confirm-modal").showModal();
+    document.getElementById("confirm-modal")?.showModal();
   };
 
-  const handleDeactivate = (id) => {
-    setStaffData((prev) => prev.map((staff) => (
-      staff.id === id ? { ...staff, isActive: false } : staff
-    )));
-    setConfirmId(null);
-    document.getElementById("confirm-modal").close();
+  // ✅ handleDeactivate menggunakan staffService
+  const handleDeactivate = async (id) => {
+    try {
+      await staffService.deactivate(id);
+      await fetchStaff(); // reload data
+      showToast("Staff berhasil dinonaktifkan", "warning");
+      setConfirmId(null);
+      document.getElementById("confirm-modal")?.close();
+    } catch (err) {
+      showToast(err.response?.data?.message || "Gagal menonaktifkan staff", "error");
+    }
   };
 
+  const handleOpenEdit = (staff) => {
+    setSelectedStaff(staff);
+    setFormData({
+      nama: staff.nama,
+      email: staff.email,
+      no_hp: staff.no_hp || "",
+      role: staff.role,
+    });
+    setShowEditModal(true);
+  };
+
+  const handleFormChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // ✅ handleCreate menggunakan staffService
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    try {
+      await staffService.create(formData);
+      showToast("Staff berhasil ditambahkan", "success");
+      setShowModal(false);
+      setFormData({ nama: "", email: "", no_hp: "", role: "" });
+      await fetchStaff();
+    } catch (err) {
+      showToast(err.response?.data?.message || "Gagal menambahkan staff", "error");
+    }
+  };
+
+  // ✅ handleUpdate menggunakan staffService
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    try {
+      await staffService.update(selectedStaff.id, formData);
+      showToast("Data staff berhasil diperbarui", "success");
+      setShowEditModal(false);
+      setSelectedStaff(null);
+      await fetchStaff();
+    } catch (err) {
+      showToast(err.response?.data?.message || "Gagal memperbarui staff", "error");
+    }
+  };
+
+  // ─── Loading ─────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <span className="loading loading-spinner loading-lg text-red-800"></span>
+      </div>
+    );
+  }
+
+  // ─── Render ──────────────────────────────────────────────
   return (
     <div
       className="space-y-5"
@@ -251,6 +352,7 @@ export default function Staff() {
         setStatusOpen(false);
       }}
     >
+      {/* ── Header ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-red-900">Direktori Staff</h1>
@@ -269,6 +371,7 @@ export default function Staff() {
         )}
       </div>
 
+      {/* ── Stats ── */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           { label: "Total Staff", value: stats.total, bg: "bg-red-50", text: "text-red-800" },
@@ -283,6 +386,7 @@ export default function Staff() {
         ))}
       </div>
 
+      {/* ── Search & Filter ── */}
       <div
         className="rounded-2xl border border-red-100 bg-white p-3 shadow-sm"
         onClick={(event) => event.stopPropagation()}
@@ -312,7 +416,7 @@ export default function Staff() {
               }}
               className="btn btn-sm btn-outline rounded-xl border-red-200 text-red-800 hover:bg-red-50"
             >
-              {roleFilter === "Semua" ? "Semua Role" : roleLabel[roleFilter]}
+              {roleFilter === "Semua" ? "Semua Role" : roleLabel[roleFilter] || roleFilter}
               <HiChevronDown size={13} className={roleOpen ? "rotate-180 transition-transform" : "transition-transform"} />
             </button>
 
@@ -325,11 +429,10 @@ export default function Staff() {
                       setRoleFilter(role);
                       setRoleOpen(false);
                     }}
-                    className={`w-full px-4 py-2 text-left text-sm hover:bg-red-50 ${
-                      roleFilter === role ? "bg-red-50 font-bold text-red-800" : "text-gray-700"
-                    }`}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-red-50 ${roleFilter === role ? "bg-red-50 font-bold text-red-800" : "text-gray-700"
+                      }`}
                   >
-                    {role === "Semua" ? "Semua Role" : roleLabel[role]}
+                    {role === "Semua" ? "Semua Role" : roleLabel[role] || role}
                   </button>
                 ))}
               </div>
@@ -357,9 +460,8 @@ export default function Staff() {
                       setStatus(status);
                       setStatusOpen(false);
                     }}
-                    className={`w-full px-4 py-2 text-left text-sm hover:bg-red-50 ${
-                      statusFilter === status ? "bg-red-50 font-bold text-red-800" : "text-gray-700"
-                    }`}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-red-50 ${statusFilter === status ? "bg-red-50 font-bold text-red-800" : "text-gray-700"
+                      }`}
                   >
                     {status}
                   </button>
@@ -370,6 +472,7 @@ export default function Staff() {
         </div>
       </div>
 
+      {/* ── Staff List ── */}
       {filtered.length === 0 ? (
         <div className="rounded-2xl bg-white py-14 text-center text-gray-400 shadow-sm">
           <HiOutlineUsers size={40} className="mx-auto mb-3 opacity-30" />
@@ -381,68 +484,204 @@ export default function Staff() {
             <RoleSection
               key={role}
               role={role}
-              staff={groupedStaff[role]}
+              staff={groupedStaff[role] || []}
               canManage={canManage}
+              onEdit={handleOpenEdit}
               onDeactivate={handleConfirmDeactivate}
             />
           ))}
         </div>
       )}
 
+      {/* ── Modal Tambah Staff ── */}
       {showModal && (
         <div className="modal modal-open">
           <div className="modal-box max-w-md rounded-2xl">
             <h3 className="mb-4 text-lg font-bold text-red-900">Tambah Staff Baru</h3>
 
-            <div className="space-y-3">
-              <label className="form-control w-full">
-                <div className="label">
-                  <span className="label-text text-xs font-semibold text-gray-600">Nama Lengkap *</span>
-                </div>
-                <input type="text" placeholder="Nama lengkap staff" className="input input-bordered input-sm w-full rounded-xl" />
-              </label>
+            <form onSubmit={handleCreate}>
+              <div className="space-y-3">
+                <label className="form-control w-full">
+                  <div className="label">
+                    <span className="label-text text-xs font-semibold text-gray-600">Nama Lengkap *</span>
+                  </div>
+                  <input
+                    type="text"
+                    name="nama"
+                    placeholder="Nama lengkap staff"
+                    className="input input-bordered input-sm w-full rounded-xl"
+                    value={formData.nama}
+                    onChange={handleFormChange}
+                    required
+                  />
+                </label>
 
-              <label className="form-control w-full">
-                <div className="label">
-                  <span className="label-text text-xs font-semibold text-gray-600">Email *</span>
-                </div>
-                <input type="email" placeholder="email@philip.co.id" className="input input-bordered input-sm w-full rounded-xl" />
-              </label>
+                <label className="form-control w-full">
+                  <div className="label">
+                    <span className="label-text text-xs font-semibold text-gray-600">Email *</span>
+                  </div>
+                  <input
+                    type="email"
+                    name="email"
+                    placeholder="email@philip.co.id"
+                    className="input input-bordered input-sm w-full rounded-xl"
+                    value={formData.email}
+                    onChange={handleFormChange}
+                    required
+                  />
+                </label>
 
-              <label className="form-control w-full">
-                <div className="label">
-                  <span className="label-text text-xs font-semibold text-gray-600">Nomor HP *</span>
-                </div>
-                <input type="tel" placeholder="08xxxxxxxxxx" className="input input-bordered input-sm w-full rounded-xl" />
-              </label>
+                <label className="form-control w-full">
+                  <div className="label">
+                    <span className="label-text text-xs font-semibold text-gray-600">Nomor HP *</span>
+                  </div>
+                  <input
+                    type="tel"
+                    name="no_hp"
+                    placeholder="08xxxxxxxxxx"
+                    className="input input-bordered input-sm w-full rounded-xl"
+                    value={formData.no_hp}
+                    onChange={handleFormChange}
+                    required
+                  />
+                </label>
 
-              <label className="form-control w-full">
-                <div className="label">
-                  <span className="label-text text-xs font-semibold text-gray-600">Role *</span>
-                </div>
-                <select className="select select-bordered select-sm w-full rounded-xl">
-                  <option value="">Pilih role</option>
-                  <option value="admin">Admin</option>
-                  <option value="marketing">Marketing</option>
-                  <option value="direktur">Direktur</option>
-                </select>
-              </label>
-            </div>
+                <label className="form-control w-full">
+                  <div className="label">
+                    <span className="label-text text-xs font-semibold text-gray-600">Role *</span>
+                  </div>
+                  <select
+                    name="role"
+                    className="select select-bordered select-sm w-full rounded-xl"
+                    value={formData.role}
+                    onChange={handleFormChange}
+                    required
+                  >
+                    <option value="">Pilih role</option>
+                    <option value="admin">Admin</option>
+                    <option value="marketing">Marketing</option>
+                    <option value="direktur">Direktur</option>
+                  </select>
+                </label>
+              </div>
 
-            <div className="modal-action mt-5">
-              <button onClick={() => setShowModal(false)} className="btn btn-sm btn-ghost rounded-xl">
-                Batal
-              </button>
-              <button className="btn btn-sm btn-error rounded-xl text-white">
-                Simpan Staff
-              </button>
-            </div>
+              <div className="modal-action mt-5">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="btn btn-sm btn-ghost rounded-xl"
+                >
+                  Batal
+                </button>
+                <button type="submit" className="btn btn-sm btn-error rounded-xl text-white">
+                  Simpan Staff
+                </button>
+              </div>
+            </form>
           </div>
 
           <div className="modal-backdrop" onClick={() => setShowModal(false)} />
         </div>
       )}
 
+      {/* ── Modal Edit Staff ── */}
+      {showEditModal && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-md rounded-2xl">
+            <h3 className="mb-4 text-lg font-bold text-red-900">Edit Staff</h3>
+
+            <form onSubmit={handleUpdate}>
+              <div className="space-y-3">
+                <label className="form-control w-full">
+                  <div className="label">
+                    <span className="label-text text-xs font-semibold text-gray-600">Nama Lengkap *</span>
+                  </div>
+                  <input
+                    type="text"
+                    name="nama"
+                    placeholder="Nama lengkap staff"
+                    className="input input-bordered input-sm w-full rounded-xl"
+                    value={formData.nama}
+                    onChange={handleFormChange}
+                    required
+                  />
+                </label>
+
+                <label className="form-control w-full">
+                  <div className="label">
+                    <span className="label-text text-xs font-semibold text-gray-600">Email *</span>
+                  </div>
+                  <input
+                    type="email"
+                    name="email"
+                    placeholder="email@philip.co.id"
+                    className="input input-bordered input-sm w-full rounded-xl"
+                    value={formData.email}
+                    onChange={handleFormChange}
+                    required
+                  />
+                </label>
+
+                <label className="form-control w-full">
+                  <div className="label">
+                    <span className="label-text text-xs font-semibold text-gray-600">Nomor HP *</span>
+                  </div>
+                  <input
+                    type="tel"
+                    name="no_hp"
+                    placeholder="08xxxxxxxxxx"
+                    className="input input-bordered input-sm w-full rounded-xl"
+                    value={formData.no_hp}
+                    onChange={handleFormChange}
+                    required
+                  />
+                </label>
+
+                <label className="form-control w-full">
+                  <div className="label">
+                    <span className="label-text text-xs font-semibold text-gray-600">Role *</span>
+                  </div>
+                  <select
+                    name="role"
+                    className="select select-bordered select-sm w-full rounded-xl"
+                    value={formData.role}
+                    onChange={handleFormChange}
+                    required
+                  >
+                    <option value="">Pilih role</option>
+                    <option value="admin">Admin</option>
+                    <option value="marketing">Marketing</option>
+                    <option value="direktur">Direktur</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="modal-action mt-5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setSelectedStaff(null);
+                  }}
+                  className="btn btn-sm btn-ghost rounded-xl"
+                >
+                  Batal
+                </button>
+                <button type="submit" className="btn btn-sm btn-error rounded-xl text-white">
+                  Update Staff
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div className="modal-backdrop" onClick={() => {
+            setShowEditModal(false);
+            setSelectedStaff(null);
+          }} />
+        </div>
+      )}
+
+      {/* ── Modal Konfirmasi Nonaktif ── */}
       <dialog id="confirm-modal" className="modal">
         <div className="modal-box max-w-sm rounded-2xl">
           <h3 className="text-lg font-bold text-red-900">Nonaktifkan Akun?</h3>
@@ -452,7 +691,7 @@ export default function Staff() {
 
           <div className="modal-action">
             <button
-              onClick={() => document.getElementById("confirm-modal").close()}
+              onClick={() => document.getElementById("confirm-modal")?.close()}
               className="btn btn-sm btn-ghost rounded-xl"
             >
               Batal
@@ -467,7 +706,7 @@ export default function Staff() {
           </div>
         </div>
 
-        <div className="modal-backdrop" onClick={() => document.getElementById("confirm-modal").close()} />
+        <div className="modal-backdrop" onClick={() => document.getElementById("confirm-modal")?.close()} />
       </dialog>
     </div>
   );
