@@ -1,7 +1,7 @@
 // philip-app/src/pages/auth/Forgot.jsx
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useToast } from "../../components/Toast";
+import { useToast } from "../../components/ToastContext";
 import { BsFillExclamationDiamondFill } from "react-icons/bs";
 import { ImSpinner2 } from "react-icons/im";
 import { HiCheckCircle } from "react-icons/hi";

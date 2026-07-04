@@ -1,7 +1,6 @@
 // philip-app/src/components/Toast.jsx — komponen toast terpusat
-import { createContext, useContext, useState, useCallback } from "react";
-
-const ToastContext = createContext(null);
+import { useState, useCallback } from "react";
+import { ToastContext } from "./ToastContext";
 
 export function ToastProvider({ children }) {
     const [toasts, setToasts] = useState([]);
@@ -33,4 +32,3 @@ export function ToastProvider({ children }) {
     );
 }
 
-export const useToast = () => useContext(ToastContext);

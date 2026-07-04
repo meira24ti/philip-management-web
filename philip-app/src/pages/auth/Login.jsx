@@ -2,7 +2,7 @@
 // — Update bagian handleSubmit 
 
 import { useState } from "react";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/useAuth";
 import { useNavigate, Link } from "react-router-dom";
 import { BsFillExclamationDiamondFill } from "react-icons/bs";
 import { ImSpinner2 } from "react-icons/im";
@@ -34,7 +34,7 @@ export default function Login() {
         setError("");
         try {
             await login(dataForm.email.trim(), dataForm.password.trim());
-            window.location.href = "/dashboard";
+            navigate("/dashboard");
         } catch (err) {
             setError(err.response?.data?.message || "Email atau password salah!");
         } finally {

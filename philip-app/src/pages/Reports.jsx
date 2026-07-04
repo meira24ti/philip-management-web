@@ -1,16 +1,16 @@
 // philip-app/src/pages/Reports.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   HiOutlineDocumentReport, HiOutlineDownload, HiOutlineChartBar,
   HiOutlineChartPie, HiOutlineCurrencyDollar, HiTrendingUp,
-  HiOutlineCalendar, HiOutlineRefresh
+  HiOutlineRefresh
 } from "react-icons/hi";
-import { useAuth } from "../context/AuthContext";
-import { useToast } from "../components/Toast";
+import { useAuth } from "../context/useAuth";
+import { useToast } from "../components/ToastContext";
 import { statistikService } from "../services/statistikService";
 import { laporanService } from "../services/laporanService";
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, AreaChart, Area
 } from "recharts";
 
@@ -40,40 +40,41 @@ export default function Reports() {
   const canSeeStats = ["direktur", "admin"].includes(role);
 
   // ─── Load Statistik ──────────────────────────────────────
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       setLoading(true);
       const data = await statistikService.getRingkasan();
       setStats(data);
-    } catch (err) {
-      console.error(err);
+    } catch {
       showToast("Gagal memuat data statistik", "error");
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
   // ─── Load Riwayat Laporan ──────────────────────────────
-  const loadRiwayat = async () => {
+  const loadRiwayat = useCallback(async () => {
     if (!isDirektur) return;
     try {
       setLoadingRiwayat(true);
       const data = await laporanService.getAll();
       setRiwayatLaporan(data);
-    } catch (err) {
-      console.error(err);
+    } catch {
       showToast("Gagal memuat riwayat laporan", "error");
     } finally {
       setLoadingRiwayat(false);
     }
-  };
+  }, [isDirektur, showToast]);
 
   useEffect(() => {
-    loadStats();
-    loadRiwayat();
-  }, []);
-
-  // ─── Handle Generate Laporan ────────────────────────────
+    const loadAll = async () => {
+      await loadStats();
+      if (isDirektur) {
+        await loadRiwayat();
+      }
+    };
+    loadAll();
+  }, [isDirektur, loadStats, loadRiwayat]);
   const handleGenerate = async () => {
     try {
       setGenerating(true);
@@ -84,8 +85,8 @@ export default function Reports() {
       });
       showToast("Laporan berhasil dibuat", "success");
       await loadRiwayat(); // Refresh riwayat
-    } catch (err) {
-      showToast(err.response?.data?.message || "Gagal membuat laporan", "error");
+    } catch {
+      showToast("Gagal membuat laporan", "error");
     } finally {
       setGenerating(false);
     }
@@ -107,7 +108,7 @@ export default function Reports() {
         // Jika backend redirect ke URL
         window.open(data, "_blank");
       }
-    } catch (err) {
+    } catch {
       showToast("Gagal mengunduh laporan", "error");
     }
   };

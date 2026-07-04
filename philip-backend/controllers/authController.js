@@ -206,3 +206,28 @@ exports.changePassword = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+// GET /api/auth/notifikasi — ambil log aktivitas terbaru untuk notifikasi
+exports.getNotifikasi = async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT la.aksi, la.detail, la.created_at,
+        CASE la.aksi
+          WHEN 'tambah'            THEN 'Properti baru ditambahkan'
+          WHEN 'edit'              THEN 'Properti diperbarui'
+          WHEN 'hapus'             THEN 'Properti dihapus'
+          WHEN 'tambah_staff'      THEN 'Staff baru terdaftar'
+          WHEN 'tambah_transaksi'  THEN 'Transaksi baru dicatat'
+          WHEN 'generate_laporan'  THEN 'Laporan baru dibuat'
+          WHEN 'login'            THEN 'Login ke sistem'          
+          ELSE la.aksi
+        END AS aksi_label
+      FROM log_aktivitas la
+      WHERE la.aksi NOT IN ('login','logout','update_profil','upload_foto','ganti_password')
+      ORDER BY la.created_at DESC
+      LIMIT 10`);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+};

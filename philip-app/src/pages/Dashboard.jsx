@@ -7,24 +7,44 @@ import {
   HiTrendingUp, HiCollection, HiCheckCircle, HiClock,
 } from "react-icons/hi";
 import { BiFilterAlt } from "react-icons/bi";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
+import { useToast } from "../components/ToastContext";
 import { propertiService } from "../services/propertiService";
-import { useToast } from "../components/Toast";
+import { getImageUrl } from "../utils/imageUrl";
 
-// Konfigurasi role (tetap di luar)
+// ─── Konfigurasi role ────────────────────────────────────────
 const ROLE_CONFIG = {
-  admin:    { canAdd: true,  canEdit: true,  canDelete: true,  canShare: true  },
-  marketing:{ canAdd: false, canEdit: false, canDelete: false, canShare: true  },
+  admin:    { canAdd: true, canEdit: true, canDelete: true, canShare: true },
+  marketing:{ canAdd: false, canEdit: false, canDelete: false, canShare: true },
   direktur: { canAdd: false, canEdit: false, canDelete: false, canShare: false },
 };
 
-// Mapping badge & status (tetap di luar)
-const badgeClass = { dijual: "badge-error", sewa: "badge-info", "dijual-sewa": "badge-warning" };
-const badgeLabel = { dijual: "Dijual", sewa: "Sewa", "dijual-sewa": "Jual/Sewa" };
-const unitClass  = { tersedia: "badge-success", terjual: "badge-error", tersewa: "badge-info", dalam_negosiasi: "badge-warning" };
-const unitLabel  = { tersedia: "Tersedia", terjual: "Terjual", tersewa: "Tersewa", dalam_negosiasi: "Negosiasi" };
+// ─── Mapping enum (sesuai database) ──────────────────────────
+const badgeClass = {
+  dijual:            "badge-error",
+  disewa:            "badge-info",
+  dijual_dan_disewa: "badge-warning",
+};
+const badgeLabel = {
+  dijual:            "Dijual",
+  disewa:            "Sewa",
+  dijual_dan_disewa: "Jual/Sewa",
+};
 
-// Komponen Dropdown (tidak berubah)
+const unitClass = {
+  tersedia:  "badge-success",
+  terjual:   "badge-error",
+  tersewa:   "badge-info",
+  negosiasi: "badge-warning",
+};
+const unitLabel = {
+  tersedia:  "Tersedia",
+  terjual:   "Terjual",
+  tersewa:   "Tersewa",
+  negosiasi: "Negosiasi",
+};
+
+// ─── Dropdown component ──────────────────────────────────────
 function Dropdown({ label, options, value, setValue, open, setOpen, closeOthers }) {
   return (
     <div className="relative">
@@ -41,9 +61,7 @@ function Dropdown({ label, options, value, setValue, open, setOpen, closeOthers 
             <button
               key={opt}
               onClick={() => { setValue(opt); setOpen(false); }}
-              className={`w-full text-left px-4 py-2.5 text-sm hover:bg-red-50 transition-colors ${
-                value === opt ? "text-red-800 font-semibold bg-red-50" : "text-gray-700"
-              }`}
+              className={`w-full text-left px-4 py-2.5 text-sm hover:bg-red-50 transition-colors ${value === opt ? "text-red-800 font-semibold bg-red-50" : "text-gray-700"}`}
             >
               {opt}
             </button>
@@ -54,42 +72,47 @@ function Dropdown({ label, options, value, setValue, open, setOpen, closeOthers 
   );
 }
 
-// Komponen Card Properti (menerima userRole)
+// ─── PropertyCard ────────────────────────────────────────────
 function PropertyCard({ p, userRole }) {
   const config = ROLE_CONFIG[userRole] || {};
+  const { showToast } = useToast();
 
   const handleShare = async (id) => {
     try {
       const { shareText, waLink } = await propertiService.getShareText(id);
       await navigator.clipboard.writeText(shareText);
       window.open(waLink, "_blank");
+      showToast("Info properti disalin ke clipboard", "success");
     } catch {
-      alert("Gagal menyalin info properti");
+      showToast("Gagal menyalin info properti", "error");
     }
   };
 
-  // Harga dan sewa
   const hargaDisplay = p.harga_jual
     ? "Rp " + Number(p.harga_jual).toLocaleString("id-ID")
     : (p.harga_sewa ? "Rp " + Number(p.harga_sewa).toLocaleString("id-ID") + "/thn" : "-");
+
+  // Mapping badge dari jenis_penawaran
+  const badgeKey = p.jenis_penawaran || "";
+  const badge = badgeClass[badgeKey] ? badgeKey : "dijual";
 
   return (
     <div className="card bg-base-100 shadow hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 overflow-hidden group border border-red-50">
       <figure className="relative h-36 overflow-hidden">
         <img
-          src={p.cover_foto || "https://placehold.co/400x240/7A0000/white?text=Foto"}
+          src={getImageUrl(p.cover_foto) || "https://placehold.co/400x240/7A0000/white?text=Foto"}
           alt={p.nama_jalan}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           onError={e => e.target.src = "https://placehold.co/400x240/7A0000/white?text=Foto"}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
         <div className="absolute top-2 left-2 flex gap-1 flex-wrap">
-          <span className={`badge badge-sm ${badgeClass[p.badge] || "badge-ghost"} text-white`}>
-            {badgeLabel[p.badge] || p.jenis_penawaran}
+          <span className={`badge badge-sm ${badgeClass[badge] || "badge-ghost"} text-white`}>
+            {badgeLabel[badge] || badge}
           </span>
         </div>
         <div className="absolute top-2 right-2">
-          <span className={`badge badge-sm ${unitClass[p.status_unit]}`}>
+          <span className={`badge badge-sm ${unitClass[p.status_unit] || "badge-ghost"}`}>
             {unitLabel[p.status_unit] || p.status_unit}
           </span>
         </div>
@@ -152,16 +175,15 @@ function PropertyCard({ p, userRole }) {
   );
 }
 
-// ─── COMPONENT DASHBOARD ───
+// ─── MAIN DASHBOARD ──────────────────────────────────────────
 export default function Dashboard() {
   const { role } = useAuth();
+  const { showToast } = useToast();
 
-  // State untuk properti dari API
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // State filter
   const [search, setSearch] = useState("");
   const [statusFilter, setStatus] = useState("Semua");
   const [typeFilter, setType] = useState("Semua");
@@ -173,7 +195,7 @@ export default function Dashboard() {
   const [unitOpen, setUnitOpen] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
 
-  // Fetch data dari API
+  // ─── Fetch data ─────────────────────────────────────────────
   useEffect(() => {
     propertiService.getAll()
       .then(data => {
@@ -183,19 +205,20 @@ export default function Dashboard() {
       .catch(err => {
         console.error(err);
         setError("Gagal memuat data properti.");
+        showToast("Gagal memuat data properti", "error");
       })
       .finally(() => setLoading(false));
   }, []);
 
-  // Hitung statistik dari properties yang sudah di-fetch
+  // ─── Statistik ──────────────────────────────────────────────
   const stats = [
     { label: "Total Listing", value: properties.length, icon: HiCollection, color: "text-red-700", bg: "bg-red-50" },
     { label: "Tersedia", value: properties.filter(p => p.status_unit === "tersedia").length, icon: HiCheckCircle, color: "text-green-700", bg: "bg-green-50" },
     { label: "Terjual/Tersewa", value: properties.filter(p => ["terjual", "tersewa"].includes(p.status_unit)).length, icon: HiTrendingUp, color: "text-blue-700", bg: "bg-blue-50" },
-    { label: "Negosiasi", value: properties.filter(p => p.status_unit === "dalam_negosiasi").length, icon: HiClock, color: "text-amber-700", bg: "bg-amber-50" },
+    { label: "Negosiasi", value: properties.filter(p => p.status_unit === "negosiasi").length, icon: HiClock, color: "text-amber-700", bg: "bg-amber-50" },
   ];
 
-  // Filter properti
+  // ─── Filtering ──────────────────────────────────────────────
   const filtered = properties.filter(p => {
     const q = search.toLowerCase();
     const matchQ =
@@ -203,19 +226,18 @@ export default function Dashboard() {
       (p.kota?.toLowerCase().includes(q) || false) ||
       (p.kategori?.toLowerCase().includes(q) || false);
 
-    // Karena field 'badge' mungkin tidak ada di API, kita buat mapping dari jenis_penawaran
-    const badgeMap = (jenis) => {
-      if (jenis === "dijual") return "dijual";
-      if (jenis === "sewa") return "sewa";
-      if (jenis === "dijual_dan_sewa") return "dijual-sewa";
-      return "";
+    // Mapping badge dari jenis_penawaran
+    const badgeMap = {
+      dijual: "dijual",
+      disewa: "disewa",
+      dijual_dan_disewa: "dijual_dan_disewa",
     };
-    const badge = badgeMap(p.jenis_penawaran);
+    const badge = badgeMap[p.jenis_penawaran] || "";
 
     const matchS =
       statusFilter === "Semua" ||
-      (statusFilter === "Dijual" && (badge === "dijual" || badge === "dijual-sewa")) ||
-      (statusFilter === "Sewa" && (badge === "sewa" || badge === "dijual-sewa"));
+      (statusFilter === "Dijual" && (badge === "dijual" || badge === "dijual_dan_disewa")) ||
+      (statusFilter === "Sewa" && (badge === "disewa" || badge === "dijual_dan_disewa"));
 
     const matchT = typeFilter === "Semua" || p.kategori === typeFilter;
     const matchL = locFilter === "Semua" || p.kota === locFilter;
@@ -238,16 +260,14 @@ export default function Dashboard() {
     setUnitOpen(false);
   };
 
-  // Jika loading, tampilkan spinner
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <span className="loading loading-spinner loading-lg text-red-800"></span>
+        <span className="loading loading-spinner loading-lg text-red-800" />
       </div>
     );
   }
 
-  // Jika error
   if (error) {
     return (
       <div className="text-center py-16 text-red-600">
@@ -264,17 +284,14 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-4" onClick={closeAll}>
-      {/* ── Hero ── */}
+      {/* ─── Hero ──────────────────────────────────────────────── */}
       <div
         className="relative w-full rounded-2xl overflow-hidden h-44 md:h-52"
         style={{ background: "linear-gradient(135deg,#7A0000 0%,#3D0000 60%,#1a0000 100%)" }}
       >
         <div
           className="absolute inset-0 opacity-10"
-          style={{
-            backgroundImage: "radial-gradient(circle,#fff 1px,transparent 1px)",
-            backgroundSize: "28px 28px",
-          }}
+          style={{ backgroundImage: "radial-gradient(circle,#fff 1px,transparent 1px)", backgroundSize: "28px 28px" }}
         />
         <div
           className="absolute right-0 top-0 w-1/2 h-full opacity-15"
@@ -303,7 +320,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Stats mobile ── */}
+      {/* ─── Stats mobile ─────────────────────────────────────── */}
       <div className="grid grid-cols-4 gap-2 lg:hidden">
         {stats.map(s => (
           <div key={s.label} className={`${s.bg} rounded-xl p-2 text-center`}>
@@ -313,7 +330,7 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* ── Search & Filter ── */}
+      {/* ─── Search & Filter ──────────────────────────────────── */}
       <div
         className="bg-white rounded-2xl border border-red-100 shadow-sm p-3 md:p-4"
         onClick={e => e.stopPropagation()}
@@ -336,10 +353,9 @@ export default function Dashboard() {
           </label>
           <button
             onClick={() => setShowFilter(!showFilter)}
-            className={`btn btn-sm rounded-xl gap-1.5 ${
-              showFilter
-                ? "btn-error text-white"
-                : "btn-outline border-red-200 text-red-800 hover:bg-red-50 hover:border-red-300"
+            className={`btn btn-sm rounded-xl gap-1.5 ${showFilter
+              ? "btn-error text-white"
+              : "btn-outline border-red-200 text-red-800 hover:bg-red-50 hover:border-red-300"
             }`}
           >
             <HiOutlineFilter size={15} />
@@ -385,7 +401,7 @@ export default function Dashboard() {
             />
             <Dropdown
               label="Status Unit"
-              options={["Semua", "tersedia", "terjual", "tersewa", "dalam_negosiasi"]}
+              options={["Semua", "tersedia", "terjual", "tersewa", "negosiasi"]}  // ✅ pakai 'negosiasi'
               value={unitFilter}
               setValue={setUnit}
               open={unitOpen}
@@ -420,7 +436,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ── Grid Properti ── */}
+      {/* ─── Grid properti ────────────────────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-bold text-red-900">

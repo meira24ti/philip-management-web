@@ -1,5 +1,5 @@
 // philip-app/src/pages/Staff.jsx
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import {
   HiChevronDown,
   HiOutlineBan,
@@ -11,9 +11,11 @@ import {
   HiSearch,
   HiX,
 } from "react-icons/hi";
-import { useAuth } from "../context/AuthContext";
-import { useToast } from "../components/Toast";
+import { useAuth } from "../context/useAuth";
+import { useToast } from "../components/ToastContext";
 import { staffService } from "../services/staffService";
+import { getImageUrl } from "../utils/imageUrl";
+import api from "../services/api";
 
 // ─── CONSTANTS ──────────────────────────────────────────────
 const roleLabel = { admin: "Admin", marketing: "Marketing", direktur: "Direktur" };
@@ -33,24 +35,29 @@ const whatsappNumber = (phone) => {
 
 // ─── AVATAR COMPONENT ──────────────────────────────────────
 function Avatar({ staff }) {
+  const [fotoError, setFotoError] = useState(false);
   const initials = staff.nama
     ?.split(" ")
     .map((name) => name[0])
     .join("")
     .slice(0, 2)
     .toUpperCase() || "?";
+  const fotoUrl = getImageUrl(staff.foto_profil);
 
   return (
-    <div className="avatar">
-      <div className="w-16 rounded-2xl bg-gradient-to-br from-red-700 to-red-950 text-white shadow-md ring ring-red-100 ring-offset-2">
-        {staff.foto_profil ? (
-          <img src={staff.foto_profil} alt={staff.nama} />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-lg font-bold">
-            {initials}
-          </div>
-        )}
-      </div>
+    <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-white text-white shadow-md ring ring-red-100 ring-offset-2">
+      {fotoUrl && !fotoError ? (
+        <img
+          src={fotoUrl}
+          alt={staff.nama || "Foto staff"}
+          className="h-full w-full object-contain"
+          onError={() => setFotoError(true)}
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-red-700 to-red-950 text-lg font-bold">
+          {initials}
+        </div>
+      )}
     </div>
   );
 }
@@ -136,7 +143,7 @@ function StaffCard({ staff, canManage, onEdit, onDeactivate, compact = false }) 
               </button>
 
               <button
-                onClick={() => onDeactivate(staff.id)}
+                onClick={() => onDeactivate(staff.id_user)}
                 className="btn btn-xs btn-ghost rounded-lg text-red-500 hover:bg-red-50"
               >
                 <HiOutlineBan size={14} />
@@ -174,7 +181,7 @@ function RoleSection({ role, staff, canManage, onEdit, onDeactivate }) {
         <div className="-mx-1 flex snap-x gap-4 overflow-x-auto px-1 pb-3 scroll-smooth">
           {staff.map((member) => (
             <StaffCard
-              key={member.id}
+              key={member.id_user}
               staff={member}
               canManage={canManage}
               onEdit={onEdit}
@@ -187,7 +194,7 @@ function RoleSection({ role, staff, canManage, onEdit, onDeactivate }) {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {staff.map((member) => (
             <StaffCard
-              key={member.id}
+              key={member.id_user}
               staff={member}
               canManage={canManage}
               onEdit={onEdit}
@@ -202,7 +209,7 @@ function RoleSection({ role, staff, canManage, onEdit, onDeactivate }) {
 
 // ─── MAIN COMPONENT ────────────────────────────────────────
 export default function Staff() {
-  const { role } = useAuth(); // ✅ Ambil role dari context
+  const { role } = useAuth();
   const { showToast } = useToast();
 
   // ─── State ──────────────────────────────────────────────
@@ -218,19 +225,20 @@ export default function Staff() {
   const [roleOpen, setRoleOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
 
-  // ─── Form state ──────────────────────────────────────────
+  // ─── Edit form + foto ──────────────────────────────────
   const [formData, setFormData] = useState({
     nama: "",
     email: "",
     no_hp: "",
     role: "",
   });
+  const [editFotoFile, setEditFotoFile] = useState(null);
+  const [editFotoPreview, setEditFotoPreview] = useState(null);
 
-  // ✅ Gunakan role dari useAuth()
   const canManage = ["admin", "direktur"].includes(role);
 
   // ─── Fetch data ──────────────────────────────────────────
-  const fetchStaff = async () => {
+  const fetchStaff = useCallback(async () => {
     try {
       setLoading(true);
       const data = await staffService.getAll();
@@ -241,12 +249,14 @@ export default function Staff() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
-  // ✅ Load data di useEffect
   useEffect(() => {
-    fetchStaff();
-  }, []);
+    const timer = window.setTimeout(() => {
+      void fetchStaff();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchStaff]);
 
   // ─── Stats ──────────────────────────────────────────────
   const stats = useMemo(() => ({
@@ -277,11 +287,10 @@ export default function Staff() {
     document.getElementById("confirm-modal")?.showModal();
   };
 
-  // ✅ handleDeactivate menggunakan staffService
   const handleDeactivate = async (id) => {
     try {
       await staffService.deactivate(id);
-      await fetchStaff(); // reload data
+      await fetchStaff();
       showToast("Staff berhasil dinonaktifkan", "warning");
       setConfirmId(null);
       document.getElementById("confirm-modal")?.close();
@@ -298,6 +307,8 @@ export default function Staff() {
       no_hp: staff.no_hp || "",
       role: staff.role,
     });
+    setEditFotoFile(null);
+    setEditFotoPreview(null);
     setShowEditModal(true);
   };
 
@@ -306,7 +317,13 @@ export default function Staff() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // ✅ handleCreate menggunakan staffService
+  const handleEditFotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setEditFotoFile(file);
+    setEditFotoPreview(URL.createObjectURL(file));
+  };
+
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
@@ -320,14 +337,26 @@ export default function Staff() {
     }
   };
 
-  // ✅ handleUpdate menggunakan staffService
   const handleUpdate = async (e) => {
     e.preventDefault();
     try {
-      await staffService.update(selectedStaff.id, formData);
+      // Update data staff
+      await staffService.update(selectedStaff.id_user, formData);
+
+      // Upload foto jika ada
+      if (editFotoFile) {
+        const form = new FormData();
+        form.append("foto", editFotoFile);
+        await api.post(`/staff/${selectedStaff.id_user}/upload-foto`, form, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+      }
+
       showToast("Data staff berhasil diperbarui", "success");
       setShowEditModal(false);
       setSelectedStaff(null);
+      setEditFotoFile(null);
+      setEditFotoPreview(null);
       await fetchStaff();
     } catch (err) {
       showToast(err.response?.data?.message || "Gagal memperbarui staff", "error");
@@ -338,7 +367,7 @@ export default function Staff() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <span className="loading loading-spinner loading-lg text-red-800"></span>
+        <span className="loading loading-spinner loading-lg text-red-800" />
       </div>
     );
   }
@@ -429,8 +458,9 @@ export default function Staff() {
                       setRoleFilter(role);
                       setRoleOpen(false);
                     }}
-                    className={`w-full px-4 py-2 text-left text-sm hover:bg-red-50 ${roleFilter === role ? "bg-red-50 font-bold text-red-800" : "text-gray-700"
-                      }`}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-red-50 ${
+                      roleFilter === role ? "bg-red-50 font-bold text-red-800" : "text-gray-700"
+                    }`}
                   >
                     {role === "Semua" ? "Semua Role" : roleLabel[role] || role}
                   </button>
@@ -460,8 +490,9 @@ export default function Staff() {
                       setStatus(status);
                       setStatusOpen(false);
                     }}
-                    className={`w-full px-4 py-2 text-left text-sm hover:bg-red-50 ${statusFilter === status ? "bg-red-50 font-bold text-red-800" : "text-gray-700"
-                      }`}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-red-50 ${
+                      statusFilter === status ? "bg-red-50 font-bold text-red-800" : "text-gray-700"
+                    }`}
                   >
                     {status}
                   </button>
@@ -592,6 +623,32 @@ export default function Staff() {
 
             <form onSubmit={handleUpdate}>
               <div className="space-y-3">
+                {/* Field foto profil */}
+                <div className="mb-3">
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Foto Profil</label>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100">
+                      {editFotoPreview || selectedStaff?.foto_profil ? (
+                        <img
+                          src={editFotoPreview || getImageUrl(selectedStaff?.foto_profil)}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-red-700 to-red-900 flex items-center justify-center text-white text-sm font-bold">
+                          {selectedStaff?.nama?.[0] || "?"}
+                        </div>
+                      )}
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="file-input file-input-sm file-input-error rounded-xl"
+                      onChange={handleEditFotoChange}
+                    />
+                  </div>
+                </div>
+
                 <label className="form-control w-full">
                   <div className="label">
                     <span className="label-text text-xs font-semibold text-gray-600">Nama Lengkap *</span>
@@ -662,6 +719,8 @@ export default function Staff() {
                   onClick={() => {
                     setShowEditModal(false);
                     setSelectedStaff(null);
+                    setEditFotoFile(null);
+                    setEditFotoPreview(null);
                   }}
                   className="btn btn-sm btn-ghost rounded-xl"
                 >
@@ -677,6 +736,8 @@ export default function Staff() {
           <div className="modal-backdrop" onClick={() => {
             setShowEditModal(false);
             setSelectedStaff(null);
+            setEditFotoFile(null);
+            setEditFotoPreview(null);
           }} />
         </div>
       )}

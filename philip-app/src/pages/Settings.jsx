@@ -1,13 +1,14 @@
 // philip-app/src/pages/Settings.jsx
 import { useState, useEffect } from "react";
 import {
-  HiOutlineCog, HiOutlineOfficeBuilding, HiOutlineUser,
-  HiOutlineLockClosed, HiOutlinePhotograph, HiOutlineEye, HiOutlineEyeOff
+  HiOutlineOfficeBuilding, HiOutlineUser,
+  HiOutlineLockClosed, HiOutlineEye, HiOutlineEyeOff
 } from "react-icons/hi";
-import { useAuth } from "../context/AuthContext";
-import { useToast } from "../components/Toast";
+import { useAuth } from "../context/useAuth";
+import { useToast } from "../components/ToastContext";
 import { settingService } from "../services/settingService";
 import { authService } from "../services/authService";
+import { getImageUrl } from "../utils/imageUrl";
 
 export default function Settings() {
   const { user } = useAuth();
@@ -26,26 +27,26 @@ export default function Settings() {
     foto: false,
   });
 
-  // ─── Company state ──────────────────────────────────────
+  // ─── Company state (sesuai key_name di database) ──────
   const [company, setCompany] = useState({
     company_name: "Philip Real Estate",
-    tagline: "JUAL · BELI · SEWA · KPR",
-    city: "Pekanbaru, Riau",
-    phone: "0761-XXXXXXX",
+    company_tagline: "JUAL · BELI · SEWA · KPR",
+    company_city: "Pekanbaru, Riau",
+    company_phone: "0761-XXXXXXX",
     hero_title: "Build Your Future",
-    hero_sub: "with us",
+    hero_subtitle: "with us",
     hero_desc: "Mulai langkah besar dari keputusan hari ini.",
     company_logo: null,
   });
 
   // ─── Profile state ──────────────────────────────────────
-  const [profile, setProfile] = useState({
-    nama: "",
-    email: "",
-    no_hp: "",
-    role: "",
-    foto_profil: null,
-  });
+  const [profile, setProfile] = useState(() => ({
+    nama: user?.nama || "",
+    email: user?.email || "",
+    no_hp: user?.no_hp || "",
+    role: user?.role || "",
+    foto_profil: user?.foto_profil || null,
+  }));
 
   // ─── Password state ─────────────────────────────────────
   const [passwordData, setPasswordData] = useState({
@@ -60,13 +61,18 @@ export default function Settings() {
 
   // ─── Load data ──────────────────────────────────────────
   useEffect(() => {
-    // Load settings dari API
     const loadSettings = async () => {
       try {
         const data = await settingService.getAll();
         setCompany(prev => ({
           ...prev,
-          ...data,
+          company_name: data.company_name || prev.company_name,
+          company_tagline: data.company_tagline || prev.company_tagline,
+          company_city: data.company_city || prev.company_city,
+          company_phone: data.company_phone || prev.company_phone,
+          hero_title: data.hero_title || prev.hero_title,
+          hero_subtitle: data.hero_subtitle || prev.hero_subtitle,
+          hero_desc: data.hero_desc || prev.hero_desc,
           company_logo: data.company_logo || null,
         }));
       } catch (err) {
@@ -74,22 +80,8 @@ export default function Settings() {
         showToast("Gagal memuat pengaturan", "error");
       }
     };
-
     loadSettings();
-  }, []);
-
-  // Load profil dari user context
-  useEffect(() => {
-    if (user) {
-      setProfile({
-        nama: user.nama || "",
-        email: user.email || "",
-        no_hp: user.no_hp || "",
-        role: user.role || "",
-        foto_profil: user.foto_profil || null,
-      });
-    }
-  }, [user]);
+  }, [showToast]);
 
   // ─── Handlers ────────────────────────────────────────────
   const handleCompanyChange = (e) => {
@@ -124,23 +116,21 @@ export default function Settings() {
     try {
       setLoading(prev => ({ ...prev, company: true }));
 
-      // Upload logo jika ada
       if (logoFile) {
         await settingService.uploadLogo(logoFile);
         setLogoFile(null);
       }
 
-      // Update setting
-      const updateData = {
+      // Kirim key yang sesuai dengan database
+      await settingService.update({
         company_name: company.company_name,
-        tagline: company.tagline,
-        city: company.city,
-        phone: company.phone,
+        company_tagline: company.company_tagline,
+        company_city: company.company_city,
+        company_phone: company.company_phone,
         hero_title: company.hero_title,
-        hero_sub: company.hero_sub,
+        hero_subtitle: company.hero_subtitle,
         hero_desc: company.hero_desc,
-      };
-      await settingService.update(updateData);
+      });
 
       showToast("Pengaturan perusahaan berhasil disimpan", "success");
       setSaved(true);
@@ -157,13 +147,11 @@ export default function Settings() {
     try {
       setLoading(prev => ({ ...prev, profile: true }));
 
-      // Upload foto jika ada
       if (fotoFile) {
         await authService.uploadFoto(fotoFile);
         setFotoFile(null);
       }
 
-      // Update profile
       await authService.updateProfile({
         nama: profile.nama,
         no_hp: profile.no_hp,
@@ -182,17 +170,14 @@ export default function Settings() {
   // ─── Change Password ──────────────────────────────────
   const handleChangePassword = async () => {
     try {
-      // Validasi
       if (!passwordData.oldPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
         showToast("Semua field password wajib diisi", "error");
         return;
       }
-
       if (passwordData.newPassword.length < 8) {
         showToast("Password baru minimal 8 karakter", "error");
         return;
       }
-
       if (passwordData.newPassword !== passwordData.confirmPassword) {
         showToast("Konfirmasi password tidak sesuai", "error");
         return;
@@ -216,7 +201,7 @@ export default function Settings() {
     }
   };
 
-  // ─── Tab config ──────────────────────────────────────────
+  // ─── Tabs ──────────────────────────────────────────────
   const tabs = [
     { id: "perusahaan", label: "Perusahaan", icon: HiOutlineOfficeBuilding },
     { id: "profil", label: "Profil Saya", icon: HiOutlineUser },
@@ -225,7 +210,6 @@ export default function Settings() {
 
   return (
     <div className="space-y-4">
-
       {/* ── Header ── */}
       <div>
         <h1 className="text-xl font-bold text-red-900">Pengaturan</h1>
@@ -238,7 +222,9 @@ export default function Settings() {
           <button
             key={t.id}
             onClick={() => setActiveTab(t.id)}
-            className={`tab gap-1.5 rounded-lg text-sm font-semibold transition-all ${activeTab === t.id ? "tab-active bg-red-800 text-white shadow" : "text-gray-600 hover:text-red-800"}`}
+            className={`tab gap-1.5 rounded-lg text-sm font-semibold transition-all ${
+              activeTab === t.id ? "tab-active bg-red-800 text-white shadow" : "text-gray-600 hover:text-red-800"
+            }`}
           >
             <t.icon size={15} />
             {t.label}
@@ -268,9 +254,9 @@ export default function Settings() {
                 <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Tagline</span></div>
                 <input
                   type="text"
-                  name="tagline"
+                  name="company_tagline"
                   className="input input-bordered input-sm rounded-xl"
-                  value={company.tagline}
+                  value={company.company_tagline}
                   onChange={handleCompanyChange}
                 />
               </label>
@@ -278,9 +264,9 @@ export default function Settings() {
                 <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Kota / Lokasi</span></div>
                 <input
                   type="text"
-                  name="city"
+                  name="company_city"
                   className="input input-bordered input-sm rounded-xl"
-                  value={company.city}
+                  value={company.company_city}
                   onChange={handleCompanyChange}
                 />
               </label>
@@ -288,16 +274,15 @@ export default function Settings() {
                 <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Nomor Telepon</span></div>
                 <input
                   type="text"
-                  name="phone"
+                  name="company_phone"
                   className="input input-bordered input-sm rounded-xl"
-                  value={company.phone}
+                  value={company.company_phone}
                   onChange={handleCompanyChange}
                 />
               </label>
             </div>
 
             <div className="divider text-xs text-gray-400">Teks Hero Banner</div>
-
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <label className="form-control">
                 <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Judul Hero</span></div>
@@ -313,9 +298,9 @@ export default function Settings() {
                 <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Sub Judul (italic)</span></div>
                 <input
                   type="text"
-                  name="hero_sub"
+                  name="hero_subtitle"
                   className="input input-bordered input-sm rounded-xl"
-                  value={company.hero_sub}
+                  value={company.hero_subtitle}
                   onChange={handleCompanyChange}
                 />
               </label>
@@ -336,7 +321,7 @@ export default function Settings() {
               <div className="w-16 h-16 bg-gradient-to-br from-red-700 to-red-900 rounded-2xl flex items-center justify-center shadow overflow-hidden">
                 {company.company_logo ? (
                   <img
-                    src={company.company_logo}
+                    src={getImageUrl(company.company_logo)}
                     alt="Logo"
                     className="w-full h-full object-cover"
                   />
@@ -362,10 +347,10 @@ export default function Settings() {
             {/* Preview mini */}
             <div className="bg-red-950 rounded-xl p-4 mt-1">
               <p className="text-red-300 text-[10px] uppercase tracking-widest mb-1">
-                {company.company_name} · {company.city}
+                {company.company_name} · {company.company_city}
               </p>
               <p className="text-white text-lg font-bold font-serif">{company.hero_title}</p>
-              <p className="text-red-300 text-sm italic">{company.hero_sub}</p>
+              <p className="text-red-300 text-sm italic">{company.hero_subtitle}</p>
               <p className="text-red-200 text-xs mt-1">{company.hero_desc}</p>
             </div>
 
@@ -394,12 +379,11 @@ export default function Settings() {
           <div className="card-body p-5 gap-4">
             <h3 className="font-bold text-red-900">Profil Akun Saya</h3>
 
-            {/* Avatar */}
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-700 to-red-900 flex items-center justify-center text-white text-xl font-bold shadow overflow-hidden">
                 {profile.foto_profil ? (
                   <img
-                    src={profile.foto_profil}
+                    src={getImageUrl(profile.foto_profil)}
                     alt={profile.nama}
                     className="w-full h-full object-cover"
                   />

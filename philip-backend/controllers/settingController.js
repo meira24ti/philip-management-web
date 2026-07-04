@@ -41,18 +41,21 @@ exports.getAll = async (req, res) => {
 // PUT /api/setting — update setting (admin only)
 exports.update = async (req, res) => {
     try {
-        const updates = req.body; // { company_name: "...", hero_title: "..." }
+        const updates = req.body;
         for (const [key, value] of Object.entries(updates)) {
+            // ✅ updated_by WAJIB diisi (NOT NULL di schema)
             await pool.query(
-                "UPDATE setting SET key_value = ?, updated_by = ? WHERE key_name = ?",
+                "UPDATE setting SET key_value = ?, updated_by = ?, updated_at = NOW() WHERE key_name = ?",
                 [value, req.user.id, key]
             );
         }
         res.json({ message: "Pengaturan berhasil disimpan" });
     } catch (err) {
+        console.error(err);
         res.status(500).json({ message: "Server error" });
     }
 };
+
 
 // POST /api/setting/logo — upload logo perusahaan
 exports.uploadLogoFile = async (req, res) => {

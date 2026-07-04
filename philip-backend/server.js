@@ -13,7 +13,23 @@ const settingRoutes = require("./routes/settingRoutes");
 
 const app = express();
 
-app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+const allowedOrigins = process.env.CLIENT_URL
+  ? process.env.CLIENT_URL.split(",").map((url) => url.trim()).filter(Boolean)
+  : [];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      const isLocalhostOrigin = /^https?:\/\/localhost(:\d+)?$/.test(origin);
+      const hasLocalhostAllowed = allowedOrigins.some((url) => /^https?:\/\/localhost(:\d+)?$/.test(url));
+      if (isLocalhostOrigin && hasLocalhostAllowed) return callback(null, true);
+      callback(new Error(`CORS policy: origin ${origin} not allowed`));
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

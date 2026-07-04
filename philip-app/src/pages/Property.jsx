@@ -1,43 +1,82 @@
 // philip-app/src/pages/Property.jsx — halaman CRUD properti lengkap
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import { useToast } from "../components/Toast";
+import { useAuth } from "../context/useAuth";
+import { useToast } from "../components/ToastContext";
 import { propertiService } from "../services/propertiService";
+import { getImageUrl } from "../utils/imageUrl";
 import {
   HiOutlinePlus, HiOutlineEye, HiOutlineShare, HiOutlinePencil,
-  HiOutlineTrash, HiSearch, HiX, HiOutlineFilter,
+  HiOutlineTrash, HiSearch, HiX,
   HiOutlineViewGrid, HiOutlineViewList, HiOutlineLocationMarker, HiTag,
 } from "react-icons/hi";
 
-// Mapping konstanta
+// ─── ROLE CONFIG ──────────────────────────────────────────────
 const ROLE_CONFIG = {
   admin: { canAdd: true, canEdit: true, canDelete: true, canShare: true },
   marketing: { canAdd: false, canEdit: false, canDelete: false, canShare: true },
   direktur: { canAdd: false, canEdit: false, canDelete: false, canShare: false },
 };
-const unitClass = { tersedia: "badge-success", terjual: "badge-error", tersewa: "badge-info", dalam_negosiasi: "badge-warning" };
-const unitLabel = { tersedia: "Tersedia", terjual: "Terjual", tersewa: "Tersewa", dalam_negosiasi: "Negosiasi" };
 
-// ── FORM PROPERTI (dipakai untuk tambah DAN edit) ─────────────────────────────
-function PropertyForm({ initial, onSubmit, onCancel, loading }) {
-  const [form, setForm] = useState(initial || {
-    no_folder: "", tanggal_listing: "", jenis_penawaran: "dijual",
-    harga_jual: "", harga_sewa: "",
-    nama_jalan: "", area_kecamatan: "", kota: "Pekanbaru",
-    luas_tanah: "", luas_bangunan: "",
-    kamar_tidur: "", kamar_mandi: "",
-    carport: "", daya_listrik: "", sumber_air: "",
-    row_jalan: "", sertifikat: "", keamanan: "",
-    daftar_bonus: "", akses_fasilitas: "", keterangan: "",
-    spanduk: false, kunci: false, feed: false, sudah_share: false,
+const unitClass = {
+  tersedia: "badge-success",
+  terjual: "badge-error",
+  tersewa: "badge-info",
+  negosiasi: "badge-warning"
+};
+const unitLabel = {
+  tersedia: "Tersedia",
+  terjual: "Terjual",
+  tersewa: "Tersewa",
+  negosiasi: "Negosiasi"
+};
+
+// ── FORM ──────────────────────────────────────────────────────
+function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketings, onCreateVendor }) {
+  const getDefaultForm = () => ({
+    no_folder: "",
+    tanggal_listing: "",
+    jenis_penawaran: "dijual",
+    harga_jual: "",
+    harga_sewa: "",
+    nama_jalan: "",
+    area_kecamatan: "",
+    kota: "Pekanbaru",
+    luas_tanah: "",
+    luas_bangunan: "",
+    kamar_tidur: "",
+    kamar_mandi: "",
+    carport: "",
+    daya_listrik: "",
+    sumber_air: "",
+    row_jalan: "",
+    sertifikat: "",
+    keamanan: "",
+    daftar_bonus: "",
+    akses_fasilitas: "",
+    keterangan: "",
+    spanduk: false,
+    kunci: false,
+    feed: false,
+    sudah_share: false,
     status_unit: "tersedia",
-    // tipe
-    kategori: "Rumah", subkategori: "", jumlah_unit: 1, jumlah_kapling: "",
-    // maps
-    latitude: "", longitude: "", gmaps_url: "",
+    kategori: "Rumah",
+    subkategori: "",
+    jumlah_unit: 1,
+    jumlah_kapling: "",
+    id_vendor: "",
+    listed_by: "",
+    latitude: "",
+    longtitude: "",
+    gmaps_url: "",
   });
+
+  const [form, setForm] = useState(() => ({ ...getDefaultForm(), ...(initial || {}) }));
   const [fotos, setFotos] = useState([]);
+  const [showVendorForm, setShowVendorForm] = useState(false);
+  const [vendorDraft, setVendorDraft] = useState({ nama_vendor: "", no_hp: "" });
+  const [vendorSaving, setVendorSaving] = useState(false);
+  const [vendorError, setVendorError] = useState("");
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSubmit = (e) => {
@@ -51,8 +90,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5 max-h-[75vh] overflow-y-auto pr-1">
-
-      {/* Identitas */}
+      {/* ─── Identitas ─────────────────────────────────────────── */}
       <div>
         <p className="text-sm font-bold text-red-900 mb-2">Identitas Unit</p>
         <div className="grid grid-cols-2 gap-3">
@@ -69,7 +107,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading }) {
         </div>
       </div>
 
-      {/* Tipe Properti */}
+      {/* ─── Tipe Properti ────────────────────────────────────── */}
       <div>
         <p className="text-sm font-bold text-red-900 mb-2">Tipe Properti</p>
         <div className="grid grid-cols-2 gap-3">
@@ -103,7 +141,101 @@ function PropertyForm({ initial, onSubmit, onCancel, loading }) {
         </div>
       </div>
 
-      {/* Lokasi */}
+      {/* ─── Vendor & Marketing ───────────────────────────────── */}
+      <div>
+        <p className="text-sm font-bold text-red-900 mb-2">Data Vendor & Marketing</p>
+        <div className="grid grid-cols-1 gap-3">
+          <label className="form-control">
+            <div className="label py-0.5"><span className={labelCls}>Vendor / Pemilik Properti *</span></div>
+            <select className={selectCls} value={form.id_vendor}
+              onChange={e => set("id_vendor", e.target.value)} required>
+              <option value="">Pilih vendor...</option>
+              {vendors.map(v => (
+                <option key={v.id_vendor} value={v.id_vendor}>
+                  {v.nama_vendor} — {v.no_hp || "-"}
+                </option>
+              ))}
+            </select>
+            <div className="label py-0.5">
+              <span className="label-text-alt text-xs text-gray-400">
+                Vendor belum ada?{" "}
+                <button type="button" className="text-red-600 underline"
+                  onClick={() => {
+                    setVendorError("");
+                    setShowVendorForm(v => !v);
+                  }}>
+                  {showVendorForm ? "Batal tambah vendor" : "Tambah vendor baru"}
+                </button>
+              </span>
+            </div>
+            {showVendorForm && (
+              <div className="rounded-xl border border-red-100 bg-red-50/50 p-3 space-y-2">
+                <div className="grid grid-cols-1 gap-2">
+                  <label className="form-control">
+                    <div className="label py-0.5"><span className={labelCls}>Nama Vendor *</span></div>
+                    <input
+                      className={inputCls}
+                      value={vendorDraft.nama_vendor}
+                      onChange={e => setVendorDraft(d => ({ ...d, nama_vendor: e.target.value }))}
+                      placeholder="Nama Lengkap Vendor"
+                      required
+                    />
+                  </label>
+                  <label className="form-control">
+                    <div className="label py-0.5"><span className={labelCls}>Nomor HP</span></div>
+                    <input
+                      className={inputCls}
+                      value={vendorDraft.no_hp}
+                      onChange={e => setVendorDraft(d => ({ ...d, no_hp: e.target.value }))}
+                      placeholder="0812xxxx"
+                    />
+                  </label>
+                </div>
+                {vendorError && <p className="text-xs text-red-600">{vendorError}</p>}
+                <div className="flex justify-end gap-2">
+                  <button type="button" className="btn btn-xs btn-ghost rounded-lg" onClick={() => setShowVendorForm(false)}>
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-error text-white rounded-lg"
+                    disabled={vendorSaving}
+                    onClick={async () => {
+                      setVendorError("");
+                      setVendorSaving(true);
+                      try {
+                        const created = await onCreateVendor(vendorDraft);
+                        set("id_vendor", created.id_vendor);
+                        setVendorDraft({ nama_vendor: "", no_hp: "" });
+                        setShowVendorForm(false);
+                      } catch (err) {
+                        setVendorError(err.response?.data?.message || "Gagal menambahkan vendor");
+                      } finally {
+                        setVendorSaving(false);
+                      }
+                    }}
+                  >
+                    {vendorSaving ? "Menyimpan..." : "Simpan Vendor"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </label>
+
+          <label className="form-control">
+            <div className="label py-0.5"><span className={labelCls}>Listing oleh (Marketing) *</span></div>
+            <select className={selectCls} value={form.listed_by}
+              onChange={e => set("listed_by", e.target.value)} required>
+              <option value="">Pilih marketing...</option>
+              {marketings.map(m => (
+                <option key={m.id_user} value={m.id_user}>{m.nama}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
+
+      {/* ─── Lokasi ────────────────────────────────────────────── */}
       <div>
         <p className="text-sm font-bold text-red-900 mb-2">Lokasi</p>
         <div className="grid grid-cols-1 gap-3">
@@ -129,7 +261,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading }) {
         </div>
       </div>
 
-      {/* Harga */}
+      {/* ─── Penawaran & Harga ────────────────────────────────── */}
       <div>
         <p className="text-sm font-bold text-red-900 mb-2">Penawaran & Harga</p>
         <div className="grid grid-cols-2 gap-3">
@@ -138,18 +270,18 @@ function PropertyForm({ initial, onSubmit, onCancel, loading }) {
             <select className={selectCls} value={form.jenis_penawaran}
               onChange={e => set("jenis_penawaran", e.target.value)} required>
               <option value="dijual">Dijual</option>
-              <option value="sewa">Disewakan</option>
-              <option value="dijual_dan_sewa">Dijual & Disewakan</option>
+              <option value="disewa">Disewakan</option>
+              <option value="dijual_dan_disewa">Dijual & Disewakan</option>
             </select>
           </label>
-          {(form.jenis_penawaran === "dijual" || form.jenis_penawaran === "dijual_dan_sewa") && (
+          {(form.jenis_penawaran === "dijual" || form.jenis_penawaran === "dijual_dan_disewa") && (
             <label className="form-control">
               <div className="label py-0.5"><span className={labelCls}>Harga Jual (Rp)</span></div>
               <input type="number" className={inputCls} value={form.harga_jual}
                 onChange={e => set("harga_jual", e.target.value)} placeholder="1500000000" />
             </label>
           )}
-          {(form.jenis_penawaran === "sewa" || form.jenis_penawaran === "dijual_dan_sewa") && (
+          {(form.jenis_penawaran === "disewa" || form.jenis_penawaran === "dijual_dan_disewa") && (
             <label className="form-control">
               <div className="label py-0.5"><span className={labelCls}>Harga Sewa/Thn (Rp)</span></div>
               <input type="number" className={inputCls} value={form.harga_sewa}
@@ -159,7 +291,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading }) {
         </div>
       </div>
 
-      {/* Ukuran */}
+      {/* ─── Ukuran ────────────────────────────────────────────── */}
       <div>
         <p className="text-sm font-bold text-red-900 mb-2">Ukuran</p>
         <div className="grid grid-cols-2 gap-3">
@@ -186,7 +318,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading }) {
         </div>
       </div>
 
-      {/* Spesifikasi */}
+      {/* ─── Spesifikasi ───────────────────────────────────────── */}
       <div>
         <p className="text-sm font-bold text-red-900 mb-2">Spesifikasi Teknis</p>
         <div className="grid grid-cols-2 gap-3">
@@ -209,7 +341,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading }) {
         </div>
       </div>
 
-      {/* Bonus & Fasilitas */}
+      {/* ─── Bonus & Fasilitas ────────────────────────────────── */}
       <div>
         <p className="text-sm font-bold text-red-900 mb-2">Bonus & Fasilitas</p>
         <div className="space-y-3">
@@ -233,7 +365,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading }) {
         </div>
       </div>
 
-      {/* Status Operasional */}
+      {/* ─── Status Operasional ───────────────────────────────── */}
       <div>
         <p className="text-sm font-bold text-red-900 mb-2">Status Operasional</p>
         <div className="grid grid-cols-2 gap-2">
@@ -254,13 +386,13 @@ function PropertyForm({ initial, onSubmit, onCancel, loading }) {
               <option value="tersedia">Tersedia</option>
               <option value="terjual">Terjual</option>
               <option value="tersewa">Tersewa</option>
-              <option value="dalam_negosiasi">Dalam Negosiasi</option>
+              <option value="negosiasi">Dalam Negosiasi</option>
             </select>
           </label>
         </div>
       </div>
 
-      {/* Foto */}
+      {/* ─── Foto ────────────────────────────────────────────── */}
       <div>
         <p className="text-sm font-bold text-red-900 mb-2">Foto Properti</p>
         <input type="file" accept="image/*" multiple
@@ -279,7 +411,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading }) {
         )}
       </div>
 
-      {/* Google Maps */}
+      {/* ─── Google Maps ──────────────────────────────────────── */}
       <div>
         <p className="text-sm font-bold text-red-900 mb-2">Lokasi Google Maps</p>
         <div className="grid grid-cols-2 gap-3">
@@ -290,8 +422,8 @@ function PropertyForm({ initial, onSubmit, onCancel, loading }) {
           </label>
           <label className="form-control">
             <div className="label py-0.5"><span className={labelCls}>Longitude</span></div>
-            <input className={inputCls} value={form.longitude}
-              onChange={e => set("longitude", e.target.value)} placeholder="101.4478" />
+            <input className={inputCls} value={form.longtitude}
+              onChange={e => set("longtitude", e.target.value)} placeholder="101.4478" />
           </label>
           <label className="form-control col-span-2">
             <div className="label py-0.5"><span className={labelCls}>Link Google Maps</span></div>
@@ -301,7 +433,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading }) {
         </div>
       </div>
 
-      {/* Tombol */}
+      {/* ─── Tombol ───────────────────────────────────────────── */}
       <div className="flex justify-end gap-2 pt-2 sticky bottom-0 bg-white py-3 border-t border-red-50">
         <button type="button" onClick={onCancel}
           className="btn btn-sm btn-ghost rounded-xl">Batal</button>
@@ -315,7 +447,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading }) {
   );
 }
 
-// ── KOMPONEN UTAMA ─────────────────────────────────────────────────────────────
+// ── KOMPONEN UTAMA ─────────────────────────────────────────────
 export default function Property() {
   const { role } = useAuth();
   const { showToast } = useToast();
@@ -330,26 +462,53 @@ export default function Property() {
   const [deleteId, setDeleteId] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  // ✅ PERBAIKAN 1: loadData menerima parameter searchTerm
-  async function loadData(searchTerm = search) {
+  // ─── State untuk dropdown vendor & marketing ────────────────
+  const [vendors, setVendors] = useState([]);
+  const [marketings, setMarketings] = useState([]);
+
+  // ─── Load data vendor & marketing ──────────────────────────
+  const loadVendorsAndMarketings = useCallback(async () => {
+    try {
+      const [v, m] = await Promise.all([
+        propertiService.getVendors(),
+        propertiService.getMarketings(),
+      ]);
+      setVendors(v);
+      setMarketings(m);
+    } catch {
+      // Jika gagal load, tetap bisa lanjut (dropdown kosong)
+    }
+  }, []);
+
+  useEffect(() => {
+    loadVendorsAndMarketings();
+  }, [loadVendorsAndMarketings]);
+
+  // ─── Load data properti ──────────────────────────────────────
+  const loadData = useCallback(async (searchTerm = "") => {
     try {
       setLoading(true);
       const data = await propertiService.getAll({ search: searchTerm || undefined });
       setProperties(data);
     } catch {
       showToast("Gagal memuat data properti", "error");
-    } finally { setLoading(false); }
-  }
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
-  // ✅ PERBAIKAN 2: Bersihkan data sebelum kirim
+  // ─── Bersihkan data form sebelum kirim ──────────────────────
   function cleanFormData(formData) {
     const clean = { ...formData };
-    // Ubah string kosong jadi null untuk field number
-    const numberFields = ['harga_jual', 'harga_sewa', 'luas_tanah', 'luas_bangunan', 
-                          'kamar_tidur', 'kamar_mandi', 'jumlah_unit', 'jumlah_kapling',
-                          'latitude', 'longitude'];
+    const numberFields = [
+      'harga_jual', 'harga_sewa', 'luas_tanah', 'luas_bangunan',
+      'kamar_tidur', 'kamar_mandi', 'jumlah_unit', 'jumlah_kapling',
+      'latitude', 'longtitude'
+    ];
     numberFields.forEach(field => {
       if (clean[field] === '' || clean[field] === null || clean[field] === undefined) {
         clean[field] = null;
@@ -360,38 +519,67 @@ export default function Property() {
     return clean;
   }
 
+  // ─── Submit tambah / edit ────────────────────────────────────
+  // ✅ Perbaikan handleSubmit: konversi boolean ke "1"/"0"
   async function handleSubmit(formData, fotoFiles) {
     try {
       setSaving(true);
-      const cleanData = cleanFormData(formData); // ✅ Bersihkan data
-      
+
+      // Konversi boolean ke "1"/"0" untuk FormData
+      const processedData = {
+        ...formData,
+        spanduk:     formData.spanduk     ? "1" : "0",
+        kunci:       formData.kunci       ? "1" : "0",
+        feed:        formData.feed        ? "1" : "0",
+        sudah_share: formData.sudah_share ? "1" : "0",
+      };
+
       if (editItem) {
-        await propertiService.update(editItem.id, cleanData);
+        // Edit: kirim JSON biasa
+        const propertiId = editItem.id_properti || editItem.id;
+        if (!propertiId) {
+          showToast("ID properti tidak ditemukan", "error");
+          return;
+        }
+        await propertiService.update(propertiId, processedData);
         showToast("Properti berhasil diperbarui");
       } else {
-        await propertiService.create(cleanData, fotoFiles);
+        // Tambah baru: pakai FormData untuk upload foto
+        await propertiService.create(processedData, fotoFiles);
         showToast("Properti berhasil ditambahkan");
       }
+
       setShowForm(false);
       setEditItem(null);
-      await loadData(); // ✅ Hanya satu kali
+      await loadData();
     } catch (err) {
       showToast(err.response?.data?.message || "Gagal menyimpan properti", "error");
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   }
 
+  // ─── Tambah vendor baru ──────────────────────────────────────
+  const handleCreateVendor = async (data) => {
+    const result = await propertiService.createVendor(data);
+    await loadVendorsAndMarketings();
+    return result.vendor;
+  };
+
+  // ─── Hapus properti ──────────────────────────────────────────
   async function handleDelete(id) {
     try {
       await propertiService.remove(id);
       showToast("Properti berhasil dihapus");
       setDeleteId(null);
       document.getElementById("delete-modal").close();
-      await loadData(); // ✅ Hanya satu kali
+      await loadData();
     } catch {
       showToast("Gagal menghapus properti", "error");
     }
   }
 
+  // ─── Share properti ──────────────────────────────────────────
   async function handleShare(id) {
     try {
       const { shareText, waLink } = await propertiService.getShareText(id);
@@ -403,62 +591,78 @@ export default function Property() {
     }
   }
 
+  // ─── Handle edit: ambil ID dengan fallback ──────────────────
+  const handleEditClick = async (property) => {
+    try {
+      const propertiId = property.id || property.id_properti;
+      if (!propertiId) {
+        console.error("❌ Property without ID:", property);
+        showToast("ID properti tidak ditemukan", "error");
+        return;
+      }
+      console.log("🟢 Editing property with ID:", propertiId);
+      const fullData = await propertiService.getById(propertiId);
+      setEditItem(fullData);
+      setShowForm(true);
+    } catch (err) {
+      console.error("❌ Failed to fetch property:", err);
+      showToast("Gagal memuat data properti", "error");
+    }
+  };
+
   return (
     <div className="space-y-4">
-      {/* Header */}
+      {/* ─── Header ────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-red-900">Manajemen Properti</h1>
           <p className="text-sm text-gray-500">{properties.length} properti terdaftar</p>
         </div>
         {config.canAdd && (
-          <button onClick={() => { setEditItem(null); setShowForm(true) }}
-            className="btn btn-sm btn-error text-white rounded-xl gap-1 shadow">
+          <button
+            onClick={() => { setEditItem(null); setShowForm(true); }}
+            className="btn btn-sm btn-error text-white rounded-xl gap-1 shadow"
+          >
             <HiOutlinePlus size={16} /> Tambah Properti
           </button>
         )}
       </div>
 
-      {/* Search - ✅ PERBAIKAN */}
+      {/* ─── Search ────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-3 flex gap-2">
         <label className="input input-bordered input-sm flex-1 flex items-center gap-2 rounded-xl border-red-100">
           <HiSearch className="text-gray-400" size={16} />
-          <input 
-            type="text" 
-            placeholder="Cari properti..." 
+          <input
+            type="text"
+            placeholder="Cari properti..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            onKeyDown={e => { 
-              if (e.key === "Enter") {
-                loadData(search); // ✅ Kirim search term
-              }
-            }}
-            className="grow text-sm" 
+            onKeyDown={e => { if (e.key === "Enter") loadData(search); }}
+            className="grow text-sm"
           />
           {search && (
-            <button 
-              onClick={() => { 
-                setSearch(""); 
-                loadData(""); // ✅ Kirim empty string
-              }}
-            >
+            <button onClick={() => { setSearch(""); loadData(""); }}>
               <HiX size={14} className="text-gray-400" />
             </button>
           )}
         </label>
         <div className="flex gap-1">
-          <button onClick={() => setViewMode("grid")}
-            className={`btn btn-sm rounded-xl ${viewMode === "grid" ? "btn-error text-white" : "btn-ghost text-gray-400"}`}>
+          <button
+            onClick={() => setViewMode("grid")}
+            className={`btn btn-sm rounded-xl ${viewMode === "grid" ? "btn-error text-white" : "btn-ghost text-gray-400"}`}
+          >
             <HiOutlineViewGrid size={16} />
           </button>
-          <button onClick={() => setViewMode("list")}
-            className={`btn btn-sm rounded-xl ${viewMode === "list" ? "btn-error text-white" : "btn-ghost text-gray-400"}`}>
+          <button
+            onClick={() => setViewMode("list")}
+            className={`btn btn-sm rounded-xl ${viewMode === "list" ? "btn-error text-white" : "btn-ghost text-gray-400"}`}
+          >
             <HiOutlineViewList size={16} />
           </button>
         </div>
       </div>
 
-      {/* Grid / List */}
+      {/* ─── Grid / List ──────────────────────────────────────── */}
       {loading ? (
         <div className="flex justify-center py-16">
           <span className="loading loading-spinner loading-lg text-red-800" />
@@ -467,8 +671,12 @@ export default function Property() {
         <div className="text-center py-16 text-gray-400">
           <p className="font-semibold text-sm">Belum ada properti</p>
           {config.canAdd && (
-            <button onClick={() => setShowForm(true)}
-              className="btn btn-sm btn-outline btn-error mt-3 rounded-xl">Tambah Properti</button>
+            <button
+              onClick={() => setShowForm(true)}
+              className="btn btn-sm btn-outline btn-error mt-3 rounded-xl"
+            >
+              Tambah Properti
+            </button>
           )}
         </div>
       ) : viewMode === "grid" ? (
@@ -476,9 +684,12 @@ export default function Property() {
           {properties.map(p => (
             <div key={p.id} className="card bg-base-100 shadow hover:shadow-md transition-all border border-red-50 overflow-hidden group">
               <figure className="relative h-32 overflow-hidden">
-                <img src={p.cover_foto || "https://placehold.co/400x200/7A0000/white?text=Foto"}
-                  alt={p.nama_jalan} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  onError={e => e.target.src = "https://placehold.co/400x200/7A0000/white?text=Foto"} />
+                <img
+                  src={getImageUrl(p.cover_foto) || "https://placehold.co/400x200/7A0000/white?text=Foto"}
+                  alt={p.nama_jalan}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  onError={e => e.target.src = "https://placehold.co/400x200/7A0000/white?text=Foto"}
+                />
                 <div className="absolute top-2 left-2">
                   <span className="badge badge-sm badge-error text-white">{p.jenis_penawaran}</span>
                 </div>
@@ -511,13 +722,13 @@ export default function Property() {
                       </button>
                     )}
                     {config.canEdit && (
-                      <button onClick={() => { setEditItem(p); setShowForm(true) }}
+                      <button onClick={() => handleEditClick(p)}
                         className="btn btn-xs btn-ghost text-gray-500 hover:bg-gray-100 rounded-lg">
                         <HiOutlinePencil size={12} />
                       </button>
                     )}
                     {config.canDelete && (
-                      <button onClick={() => { setDeleteId(p.id); document.getElementById("delete-modal").showModal() }}
+                      <button onClick={() => { setDeleteId(p.id); document.getElementById("delete-modal").showModal(); }}
                         className="btn btn-xs btn-ghost text-red-400 hover:bg-red-50 rounded-lg">
                         <HiOutlineTrash size={12} />
                       </button>
@@ -550,8 +761,8 @@ export default function Property() {
                     <div className="flex gap-1 justify-end">
                       <Link to={`/property/${p.id}`} className="btn btn-xs btn-ghost text-red-600 rounded-lg"><HiOutlineEye size={13} /></Link>
                       {config.canShare && <button onClick={() => handleShare(p.id)} className="btn btn-xs btn-ghost text-blue-500 rounded-lg"><HiOutlineShare size={13} /></button>}
-                      {config.canEdit && <button onClick={() => { setEditItem(p); setShowForm(true) }} className="btn btn-xs btn-ghost text-gray-500 rounded-lg"><HiOutlinePencil size={13} /></button>}
-                      {config.canDelete && <button onClick={() => { setDeleteId(p.id); document.getElementById("delete-modal").showModal() }} className="btn btn-xs btn-ghost text-red-400 rounded-lg"><HiOutlineTrash size={13} /></button>}
+                      {config.canEdit && <button onClick={() => handleEditClick(p)} className="btn btn-xs btn-ghost text-gray-500 rounded-lg"><HiOutlinePencil size={13} /></button>}
+                      {config.canDelete && <button onClick={() => { setDeleteId(p.id); document.getElementById("delete-modal").showModal(); }} className="btn btn-xs btn-ghost text-red-400 rounded-lg"><HiOutlineTrash size={13} /></button>}
                     </div>
                   </td>
                 </tr>
@@ -561,7 +772,7 @@ export default function Property() {
         </div>
       )}
 
-      {/* Modal Form Tambah/Edit */}
+      {/* ─── Modal Form ───────────────────────────────────────── */}
       {showForm && (
         <div className="modal modal-open">
           <div className="modal-box max-w-2xl rounded-2xl">
@@ -569,17 +780,21 @@ export default function Property() {
               {editItem ? "Edit Properti" : "Tambah Properti Baru"}
             </h3>
             <PropertyForm
+              key={editItem?.id || "new"}
               initial={editItem || undefined}
               onSubmit={handleSubmit}
-              onCancel={() => { setShowForm(false); setEditItem(null) }}
+              onCancel={() => { setShowForm(false); setEditItem(null); }}
               loading={saving}
+              vendors={vendors}
+              marketings={marketings}
+              onCreateVendor={handleCreateVendor}
             />
           </div>
-          <div className="modal-backdrop" onClick={() => { setShowForm(false); setEditItem(null) }} />
+          <div className="modal-backdrop" onClick={() => { setShowForm(false); setEditItem(null); }} />
         </div>
       )}
 
-      {/* Modal Konfirmasi Hapus */}
+      {/* ─── Modal Hapus ──────────────────────────────────────── */}
       <dialog id="delete-modal" className="modal">
         <div className="modal-box rounded-2xl max-w-sm">
           <h3 className="font-bold text-lg text-red-900">Hapus Properti?</h3>

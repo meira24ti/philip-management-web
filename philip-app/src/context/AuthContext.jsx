@@ -1,35 +1,54 @@
 // philip-app/src/context/AuthContext.jsx
-import { createContext, useContext, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { authService } from "../services/authService";
-
-const AuthContext = createContext(null);
+import { AuthContext } from "./useAuth";
 
 export function AuthProvider({ children }) {
-    const [user, setUser] = useState(null);
-    const [role, setRole] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [user, setUser] = useState(() => {
+      try {
+        const stored = localStorage.getItem("user");
+        return stored ? JSON.parse(stored) : null;
+      } catch {
+        return null;
+      }
+    });
+    const [role, setRole] = useState(() => {
+      try {
+        const stored = localStorage.getItem("user");
+        return stored ? JSON.parse(stored).role : null;
+      } catch {
+        return null;
+      }
+    });
+    const [loading, setLoading] = useState(() => Boolean(localStorage.getItem("user")));
 
     useEffect(() => {
         const stored = localStorage.getItem("user");
-        if (stored) {
-            const parsed = JSON.parse(stored);
-            setUser(parsed);
-            setRole(parsed.role);
-            authService.me()
-                .then(user => {
-                    setUser({ ...parsed, ...user }); // update data terbaru
-                    setRole(user.role);
-                })
-                .catch(() => {
-                    // Token tidak valid, hapus localStorage
-                    localStorage.removeItem("user");
-                    setUser(null);
-                    setRole(null);
-                })
-                .finally(() => setLoading(false));
-        } else {
-            setLoading(false);
+        if (!stored) {
+            return;
         }
+
+        let isActive = true;
+        const parsed = JSON.parse(stored);
+        authService.me()
+            .then((userData) => {
+                if (!isActive) return;
+                setUser({ ...parsed, ...userData });
+                setRole(userData.role);
+            })
+            .catch(() => {
+                if (!isActive) return;
+                localStorage.removeItem("user");
+                setUser(null);
+                setRole(null);
+            })
+            .finally(() => {
+                if (isActive) setLoading(false);
+            });
+
+        return () => {
+            isActive = false;
+        };
     }, []);
 
     const login = async (email, password) => {
@@ -43,7 +62,11 @@ export function AuthProvider({ children }) {
     };
 
     const logout = async () => {
-        try { await authService.logout(); } catch { }
+        try {
+            await authService.logout();
+        } catch {
+            // ignore logout failures and clear local auth state
+        }
         localStorage.removeItem("user");
         setUser(null);
         setRole(null);
@@ -55,5 +78,3 @@ export function AuthProvider({ children }) {
         </AuthContext.Provider>
     );
 }
-
-export const useAuth = () => useContext(AuthContext);

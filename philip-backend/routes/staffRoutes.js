@@ -8,5 +8,8 @@ router.get("/", auth, ctrl.getAll);
 router.post("/", auth, rbac("admin", "direktur"), ctrl.create);
 router.put("/:id", auth, rbac("admin", "direktur"), ctrl.update);
 router.patch("/:id/deactivate", auth, rbac("admin", "direktur"), ctrl.deactivate);
+router.post("/:id/upload-foto", auth, rbac("admin", "direktur"),
+    ctrl.uploadFoto.single("foto"), ctrl.uploadStaffFoto);
+
 
 module.exports = router;

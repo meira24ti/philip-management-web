@@ -1,4 +1,4 @@
-import React, { Suspense, useState, useEffect } from "react";
+import React, { Suspense } from "react";
 import { Route, Routes, Navigate } from "react-router-dom";
 import "./assets/tailwind.css";
 
@@ -8,6 +8,9 @@ import AuthLayout from "./layouts/AuthLayout";
 
 // Components
 import Loading from "./components/Loading";
+
+// Auth
+import { useAuth } from "./context/useAuth";
 
 // Lazy Pages
 const Dashboard = React.lazy(() => import("./pages/Dashboard"));
@@ -22,49 +25,76 @@ const Login = React.lazy(() => import("./pages/auth/Login"));
 const Register = React.lazy(() => import("./pages/auth/Register"));
 const Forgot = React.lazy(() => import("./pages/auth/Forgot"));
 
+// ─── Guard: harus login ────────────────────────────────────────
+function RequireAuth({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <Loading />;
+  if (!user) return <Navigate to="/login" replace />;
+  return children;
+}
+
+// ─── Guard: harus role tertentu ────────────────────────────────
+function RequireRole({ roles, children }) {
+  const { user, role, loading } = useAuth();
+  if (loading) return <Loading />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!roles.includes(role)) return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
+// ─── Guard: guest (belum login) ────────────────────────────────
+function RequireGuest({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <Loading />;
+  if (user) return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
 function App() {
-
-  const [isLogin, setIsLogin] = useState(localStorage.getItem("user"));
-
-  useEffect(() => {
-    const handleStorageChange = () => {
-      setIsLogin(localStorage.getItem("user"));
-    };
-
-
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
-  }, []);
-
   return (
     <Suspense fallback={<Loading />}>
       <Routes>
-        {/* Default Redirect */}
-        <Route
-          path="/"
-          element={isLogin ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />}
-        />
+        {/* Default redirect */}
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-        {/* Auth Layout */}
+        {/* Auth Layout — hanya guest yang bisa akses */}
         <Route element={<AuthLayout />}>
-          <Route
-            path="/login"
-            element={isLogin ? <Navigate to="/dashboard" replace /> : <Login />}
-          />
-          <Route path="/register" element={<Register />} />
-          <Route path="/forgot" element={<Forgot />} />
+          <Route path="/login" element={
+            <RequireGuest>
+              <Login />
+            </RequireGuest>
+          } />
+          <Route path="/forgot" element={
+            <RequireGuest>
+              <Forgot />
+            </RequireGuest>
+          } />
+          {/* Register: hanya Admin yang bisa akses */}
+          <Route path="/register" element={
+            <RequireRole roles={["admin"]}>
+              <Register />
+            </RequireRole>
+          } />
         </Route>
 
-        {/* Main Layout */}
-        <Route
-          element={isLogin ? <MainLayout /> : <Navigate to="/login" replace />}
-        >
+        {/* Main Layout — harus login */}
+        <Route element={
+          <RequireAuth>
+            <MainLayout />
+          </RequireAuth>
+        }>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/property" element={<Property />} />
           <Route path="/property/:id" element={<PropertyDetail />} />
           <Route path="/staff" element={<Staff />} />
-          <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
+
+          {/* Reports: hanya Admin & Direktur */}
+          <Route path="/reports" element={
+            <RequireRole roles={["admin", "direktur"]}>
+              <Reports />
+            </RequireRole>
+          } />
         </Route>
 
         {/* Not Found */}

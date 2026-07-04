@@ -10,6 +10,6 @@ router.put("/profile", auth, ctrl.updateProfile);
 router.put("/password", auth, ctrl.changePassword);
 router.post("/upload-foto", auth,
     ctrl.uploadFoto.single("foto"), ctrl.uploadFotoProfile);
-
+router.get("/notifikasi", auth, ctrl.getNotifikasi);
 
 module.exports = router;

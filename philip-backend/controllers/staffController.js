@@ -1,10 +1,10 @@
 // philip-backend/controllers/staffController.js
-const pool   = require("../config/db");
+const pool = require("../config/db");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const multer = require("multer");
-const path   = require("path");
-const fs     = require("fs").promises;
+const path = require("path");
+const fs = require("fs").promises;
 
 // ─── Upload foto profil staff ──────────────────────────────
 const fotoStorage = multer.diskStorage({
@@ -136,11 +136,10 @@ exports.update = async (req, res) => {
 
     // 4. Update data
     await pool.query(
-      `UPDATE user
-       SET nama = ?, email = ?, role = ?, no_hp = ?, updated_at = NOW()
-       WHERE id = ?`,
+      "UPDATE user SET nama=?, email=?, role=?, no_hp=?, updated_at=NOW() WHERE id_user=?",
       [nama, email, role, no_hp, id]
     );
+
 
     // 5. Catat log
     await pool.query(
@@ -185,5 +184,17 @@ exports.deactivate = async (req, res) => {
   } catch (err) {
     console.error("❌ Error di deactivate staff:", err);
     res.status(500).json({ message: "Server error" });
+  }
+};
+
+exports.uploadStaffFoto = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "File tidak ditemukan" });
+    const { id } = req.params;
+    const fotoUrl = "/uploads/profil/" + req.file.filename;
+    await pool.query("UPDATE user SET foto_profil=? WHERE id_user=?", [fotoUrl, id]);
+    res.json({ message:"Foto staff berhasil diupload", fotoUrl });
+  } catch (err) {
+    res.status(500).json({ message:"Server error" });
   }
 };
