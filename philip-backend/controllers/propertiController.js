@@ -5,6 +5,7 @@ const multer = require("multer");
 const path   = require("path");
 const fs     = require("fs").promises;
 const crypto = require("crypto");
+const { normalizeDecimalValue, sanitizeForColumnLimits } = require("../utils/numberUtils");
 
 // ─── Helper ──────────────────────────────────────────────────────
 const toSqlBoolean = (value) => {
@@ -53,7 +54,7 @@ exports.upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 exports.getAll = async (req, res) => {
   try {
     const { search, jenis, kota, statusUnit, ltMin, ltMax, hargaMin, hargaMax,
-            listedBy, dari, sampai } = req.query;
+            listedBy, dari, sampai, kategori } = req.query;
 
     // ✅ ALIAS p.id_properti AS id
     let sql = `
@@ -75,6 +76,7 @@ exports.getAll = async (req, res) => {
       const s = `%${search}%`;
       params.push(s, s, s);
     }
+    if (kategori)    { sql += " AND tp.kategori = ?";       params.push(normalizeKategori(kategori)); }
     if (jenis)       { sql += " AND p.jenis_penawaran = ?"; params.push(jenis); }
     if (kota)        { sql += " AND p.kota = ?";            params.push(kota); }
     if (statusUnit)  { sql += " AND p.status_unit = ?";     params.push(statusUnit); }
@@ -173,6 +175,9 @@ exports.getMarketingList = async (req, res) => {
 exports.create = async (req, res) => {
   const conn = await pool.getConnection();
   try {
+    // Diagnostic logging for failed uploads
+    try { console.log('DEBUG create properti - body keys:', Object.keys(req.body || {})); } catch(e){}
+    try { console.log('DEBUG create properti - files count:', (req.files && req.files.length) || 0); } catch(e){}
     await conn.beginTransaction();
 
     const id = crypto.randomUUID();
@@ -182,6 +187,23 @@ exports.create = async (req, res) => {
     for (const key of allowedPropertyFields) {
       if (req.body[key] !== undefined) {
         propertiData[key] = req.body[key];
+      }
+    }
+
+    // Defensive: normalize numeric fields to valid SQL values before insert
+    const numericFields = ['harga_jual', 'harga_sewa', 'luas_tanah', 'luas_bangunan',
+      'kamar_tidur', 'kamar_mandi', 'latitude', 'longtitude'];
+    for (const nf of numericFields) {
+      if (Object.prototype.hasOwnProperty.call(propertiData, nf)) {
+        if (propertiData[nf] === '' || propertiData[nf] === null || propertiData[nf] === undefined) {
+          propertiData[nf] = null;
+        } else if (nf === 'harga_jual' || nf === 'harga_sewa') {
+          propertiData[nf] = normalizeDecimalValue(propertiData[nf], 15, 2);
+        } else if (nf === 'luas_tanah' || nf === 'luas_bangunan') {
+          propertiData[nf] = normalizeDecimalValue(propertiData[nf], 10, 2);
+        } else {
+          propertiData[nf] = Number(propertiData[nf]);
+        }
       }
     }
 
@@ -198,7 +220,15 @@ exports.create = async (req, res) => {
     propertiData.kota        = propertiData.kota || "";
     propertiData.nama_jalan  = propertiData.nama_jalan || "";
 
-    await conn.query("INSERT INTO properti SET ?", [propertiData]);
+    const [columns] = await conn.query("SHOW COLUMNS FROM properti");
+    const columnLimits = columns.reduce((acc, column) => {
+      const match = column.Type.match(/varchar\((\d+)\)/i);
+      if (match) acc[column.Field] = Number(match[1]);
+      return acc;
+    }, {});
+    const safePropertiData = sanitizeForColumnLimits(propertiData, columnLimits);
+
+    await conn.query("INSERT INTO properti SET ?", [safePropertiData]);
 
     await conn.query("INSERT INTO tipe_properti SET ?", [{
       id_tipeproperti: crypto.randomUUID(),
@@ -236,7 +266,7 @@ exports.create = async (req, res) => {
     res.status(201).json({ message: "Properti berhasil ditambahkan", id });
   } catch (err) {
     await conn.rollback();
-    console.error(err);
+    console.error('ERROR in propertiController.create:', err && err.stack ? err.stack : err);
     res.status(500).json({ message: "Server error" });
   } finally { conn.release(); }
 };
@@ -257,6 +287,22 @@ exports.update = async (req, res) => {
       }
     }
 
+    const numericFields = ['harga_jual', 'harga_sewa', 'luas_tanah', 'luas_bangunan',
+      'kamar_tidur', 'kamar_mandi', 'latitude', 'longtitude'];
+    for (const nf of numericFields) {
+      if (Object.prototype.hasOwnProperty.call(updateData, nf)) {
+        if (updateData[nf] === '' || updateData[nf] === null || updateData[nf] === undefined) {
+          updateData[nf] = null;
+        } else if (nf === 'harga_jual' || nf === 'harga_sewa') {
+          updateData[nf] = normalizeDecimalValue(updateData[nf], 15, 2);
+        } else if (nf === 'luas_tanah' || nf === 'luas_bangunan') {
+          updateData[nf] = normalizeDecimalValue(updateData[nf], 10, 2);
+        } else {
+          updateData[nf] = Number(updateData[nf]);
+        }
+      }
+    }
+
     const boolFields = ['spanduk', 'kunci', 'feed', 'sudah_share'];
     for (const field of boolFields) {
       if (updateData[field] !== undefined) {
@@ -266,9 +312,17 @@ exports.update = async (req, res) => {
 
     updateData.updated_at = new Date();
 
+    const [columns] = await pool.query("SHOW COLUMNS FROM properti");
+    const columnLimits = columns.reduce((acc, column) => {
+      const match = column.Type.match(/varchar\((\d+)\)/i);
+      if (match) acc[column.Field] = Number(match[1]);
+      return acc;
+    }, {});
+    const safeUpdateData = sanitizeForColumnLimits(updateData, columnLimits);
+
     const [result] = await pool.query(
       "UPDATE properti SET ? WHERE id_properti = ?",
-      [updateData, propertiId]
+      [safeUpdateData, propertiId]
     );
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "Properti tidak ditemukan" });

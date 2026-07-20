@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs").promises;
+const crypto = require("crypto");
 
 // ─── LOGIN ────────────────────────────────────────────────────
 exports.login = async (req, res) => {
@@ -32,8 +33,8 @@ exports.login = async (req, res) => {
 
     // Catat log login
     await pool.query(
-      "INSERT INTO log_aktivitas (id_user, aksi, detail) VALUES (?, 'login', ?)",
-      [user.id_user, `Login dari IP: ${req.ip}`]
+      "INSERT INTO log_aktivitas (id_log, id_user, aksi, detail) VALUES (?, ?, 'login', ?)",
+      [crypto.randomUUID(), user.id_user, `Login dari IP: ${req.ip}`]
     );
 
     const { password_hash: _, ...userData } = user; // ✅ exclude password_hash
@@ -48,8 +49,8 @@ exports.login = async (req, res) => {
 exports.logout = async (req, res) => {
   try {
     await pool.query(
-      "INSERT INTO log_aktivitas (id_user, aksi) VALUES (?, 'logout')",
-      [req.user.id]
+      "INSERT INTO log_aktivitas (id_log, id_user, aksi, detail) VALUES (?, ?, 'logout', ?)",
+      [crypto.randomUUID(), req.user.id, `Logout dari IP: ${req.ip}`]
     );
     res.json({ message: "Logout berhasil" });
   } catch (err) {
@@ -120,8 +121,8 @@ exports.updateProfile = async (req, res) => {
 
     // Log aktivitas
     await pool.query(
-      "INSERT INTO log_aktivitas (id_user, aksi, detail) VALUES (?, 'update_profil', ?)",
-      [req.user.id, `Update profil: ${nama}`]
+      "INSERT INTO log_aktivitas (id_log, id_user, aksi, detail) VALUES (?, ?, 'update_profil', ?)",
+      [crypto.randomUUID(), req.user.id, `Update profil: ${nama}`]
     );
 
     const [rows] = await pool.query(
@@ -150,8 +151,8 @@ exports.uploadFotoProfile = async (req, res) => {
 
     // Log aktivitas
     await pool.query(
-      "INSERT INTO log_aktivitas (id_user, aksi, detail) VALUES (?, 'upload_foto', ?)",
-      [req.user.id, `Upload foto profil: ${fotoUrl}`]
+      "INSERT INTO log_aktivitas (id_log, id_user, aksi, detail) VALUES (?, ?, 'upload_foto', ?)",
+      [crypto.randomUUID(), req.user.id, `Upload foto profil: ${fotoUrl}`]
     );
 
     res.json({ message: "Foto berhasil diupload", fotoUrl });
@@ -196,8 +197,8 @@ exports.changePassword = async (req, res) => {
 
     // Log aktivitas
     await pool.query(
-      "INSERT INTO log_aktivitas (id_user, aksi, detail) VALUES (?, 'ganti_password', 'Password berhasil diubah')",
-      [req.user.id]
+      "INSERT INTO log_aktivitas (id_log, id_user, aksi, detail) VALUES (?, ?, 'ganti_password', 'Password berhasil diubah')",
+      [crypto.randomUUID(), req.user.id]
     );
 
     res.json({ message: "Password berhasil diubah" });

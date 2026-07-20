@@ -15,7 +15,7 @@ import { getImageUrl } from "../utils/imageUrl";
 
 // ─── Konfigurasi role ──────────────────────────────────────────
 const ROLE_CONFIG = {
-  admin: { canEdit: true, canDelete: true, canShare: true, canFlyer: true },
+  admin: { canEdit: true, canDelete: true, canShare: false, canFlyer: true },
   marketing: { canEdit: false, canDelete: false, canShare: true, canFlyer: true },
   direktur: { canEdit: false, canDelete: false, canShare: false, canFlyer: false },
 };
@@ -108,15 +108,15 @@ export default function PropertyDetail() {
   const handleDownloadFlyer = async () => {
     try {
       const data = await propertiService.getById(id);
-      const blob = await generateFlyerPNG(data);
+      const blob = await generateFlyerPNG(data, { scale: 3 });
+      if (!blob) throw new Error("Blob flyer kosong");
       downloadFlyer(blob, `flyer-${data.no_folder || data.id}.png`);
       showToast("Flyer berhasil didownload", "success");
     } catch (err) {
       console.error("Gagal generate flyer:", err);
-      showToast("Gagal membuat flyer", "error");
+      showToast(err.message || "Gagal membuat flyer", "error");
     }
   };
-
   // ─── Handler submit transaksi ────────────────────────────
   const handleSubmitTransaksi = async (e) => {
     e.preventDefault();

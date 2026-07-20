@@ -14,8 +14,11 @@ export default function Settings() {
   const { user } = useAuth();
   const { showToast } = useToast();
 
+  const role = user?.role || "";
+  const canEditCompany = role === "admin" || role === "direktur";
+
   // ─── State ──────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState("perusahaan");
+  const [activeTab, setActiveTab] = useState(canEditCompany ? "perusahaan" : "profil");
   const [showOldPw, setShowOldPw] = useState(false);
   const [showNewPw, setShowNewPw] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -202,11 +205,16 @@ export default function Settings() {
   };
 
   // ─── Tabs ──────────────────────────────────────────────
-  const tabs = [
-    { id: "perusahaan", label: "Perusahaan", icon: HiOutlineOfficeBuilding },
-    { id: "profil", label: "Profil Saya", icon: HiOutlineUser },
-    { id: "keamanan", label: "Keamanan", icon: HiOutlineLockClosed },
-  ];
+  const tabs = canEditCompany
+    ? [
+        { id: "perusahaan", label: "Perusahaan", icon: HiOutlineOfficeBuilding },
+        { id: "profil", label: "Profil Saya", icon: HiOutlineUser },
+        { id: "keamanan", label: "Keamanan", icon: HiOutlineLockClosed },
+      ]
+    : [
+        { id: "profil", label: "Profil Saya", icon: HiOutlineUser },
+        { id: "keamanan", label: "Keamanan", icon: HiOutlineLockClosed },
+      ];
 
   return (
     <div className="space-y-4">
@@ -233,7 +241,7 @@ export default function Settings() {
       </div>
 
       {/* ── Perusahaan ── */}
-      {activeTab === "perusahaan" && (
+      {activeTab === "perusahaan" && canEditCompany && (
         <div className="card bg-base-100 shadow border border-red-50">
           <div className="card-body p-5 gap-4">
             <h3 className="font-bold text-red-900">Identitas Perusahaan</h3>
@@ -372,6 +380,8 @@ export default function Settings() {
           </div>
         </div>
       )}
+
+      {/* non-editing users won't see the perusahaan tab, so no access-denied message */}
 
       {/* ── Profil Saya ── */}
       {activeTab === "profil" && (

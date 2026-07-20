@@ -96,18 +96,13 @@ export default function Reports() {
   const handleDownload = async (id) => {
     try {
       const data = await laporanService.download(id);
-      // Jika data berupa blob/file
-      if (data instanceof Blob) {
-        const url = URL.createObjectURL(data);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `laporan-${id}.pdf`;
-        link.click();
-        URL.revokeObjectURL(url);
-      } else {
-        // Jika backend redirect ke URL
-        window.open(data, "_blank");
-      }
+      const blob = new Blob([data], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `laporan-${id}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
     } catch {
       showToast("Gagal mengunduh laporan", "error");
     }
@@ -348,30 +343,33 @@ export default function Reports() {
                     </tr>
                   </thead>
                   <tbody>
-                    {riwayatLaporan.map(r => (
-                      <tr key={r.id} className="hover:bg-red-50/30 transition-colors border-b border-red-50">
-                        <td className="font-medium text-sm text-gray-700">{r.judul}</td>
-                        <td>
-                          <span className={`badge badge-sm ${tipeBadge[r.tipe] || "badge-ghost"} text-white`}>
-                            {r.tipe || "Laporan"}
-                          </span>
-                        </td>
-                        <td className="text-xs text-gray-500">
-                          {r.periode_mulai || r.periode_start || "-"} — {r.periode_selesai || r.periode_end || "-"}
-                        </td>
-                        <td className="text-xs text-gray-500">
-                          {r.created_at ? new Date(r.created_at).toLocaleDateString("id-ID") : "-"}
-                        </td>
-                        <td>
-                          <button
-                            onClick={() => handleDownload(r.id)}
-                            className="btn btn-xs btn-ghost text-red-600 hover:bg-red-50 rounded-lg gap-1"
-                          >
-                            <HiOutlineDownload size={13} /> Unduh
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {riwayatLaporan.map(r => {
+                      const reportId = r.id || r.id_laporan;
+                      return (
+                        <tr key={reportId} className="hover:bg-red-50/30 transition-colors border-b border-red-50">
+                          <td className="font-medium text-sm text-gray-700">{r.judul}</td>
+                          <td>
+                            <span className={`badge badge-sm ${tipeBadge[r.tipe] || "badge-ghost"} text-white`}>
+                              {r.tipe || "Laporan"}
+                            </span>
+                          </td>
+                          <td className="text-xs text-gray-500">
+                            {r.periode_mulai || r.periode_start || "-"} — {r.periode_selesai || r.periode_end || "-"}
+                          </td>
+                          <td className="text-xs text-gray-500">
+                            {r.created_at ? new Date(r.created_at).toLocaleDateString("id-ID") : "-"}
+                          </td>
+                          <td>
+                            <button
+                              onClick={() => handleDownload(reportId)}
+                              className="btn btn-xs btn-ghost text-red-600 hover:bg-red-50 rounded-lg gap-1"
+                            >
+                              <HiOutlineDownload size={13} /> Unduh
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

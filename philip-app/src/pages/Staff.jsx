@@ -231,6 +231,7 @@ export default function Staff() {
     email: "",
     no_hp: "",
     role: "",
+    password: "",
   });
   const [editFotoFile, setEditFotoFile] = useState(null);
   const [editFotoPreview, setEditFotoPreview] = useState(null);
@@ -330,7 +331,7 @@ export default function Staff() {
       await staffService.create(formData);
       showToast("Staff berhasil ditambahkan", "success");
       setShowModal(false);
-      setFormData({ nama: "", email: "", no_hp: "", role: "" });
+      setFormData({ nama: "", email: "", no_hp: "", role: "", password: "" });
       await fetchStaff();
     } catch (err) {
       showToast(err.response?.data?.message || "Gagal menambahkan staff", "error");
@@ -529,7 +530,7 @@ export default function Staff() {
         <div className="modal modal-open">
           <div className="modal-box max-w-md rounded-2xl">
             <h3 className="mb-4 text-lg font-bold text-red-900">Tambah Staff Baru</h3>
-
+``
             <form onSubmit={handleCreate}>
               <div className="space-y-3">
                 <label className="form-control w-full">
@@ -593,6 +594,21 @@ export default function Staff() {
                     <option value="marketing">Marketing</option>
                     <option value="direktur">Direktur</option>
                   </select>
+                </label>
+
+                <label className="form-control w-full">
+                  <div className="label">
+                    <span className="label-text text-xs font-semibold text-gray-600">Password</span>
+                  </div>
+                  <input
+                    type="password"
+                    name="password"
+                    placeholder="Password staff (opsional)"
+                    className="input input-bordered input-sm w-full rounded-xl"
+                    value={formData.password}
+                    onChange={handleFormChange}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Kosongkan untuk generate password otomatis.</p>
                 </label>
               </div>
 

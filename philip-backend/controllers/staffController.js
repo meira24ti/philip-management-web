@@ -66,7 +66,7 @@ exports.getAll = async (req, res) => {
 // ─── POST /api/staff ────────────────────────────────────────
 exports.create = async (req, res) => {
   try {
-    const { nama, email, role, no_hp } = req.body;
+    const { nama, email, role, no_hp, password } = req.body;
 
     // 1. Validasi role
     const validRoles = ["admin", "marketing", "direktur"];
@@ -80,9 +80,18 @@ exports.create = async (req, res) => {
       return res.status(409).json({ message: "Email sudah terdaftar" });
     }
 
-    // 3. Generate password acak (lebih aman)
-    const rawPassword = crypto.randomBytes(8).toString("hex"); // 16 karakter hex
-    const hashedPassword = await bcrypt.hash(rawPassword, 10);
+    // 3. Gunakan password yang diberikan admin atau generate acak
+    let rawPassword = null;
+    let hashedPassword;
+    if (password) {
+      if (typeof password !== "string" || password.length < 6) {
+        return res.status(400).json({ message: "Password minimal 6 karakter" });
+      }
+      hashedPassword = await bcrypt.hash(password, 10);
+    } else {
+      rawPassword = crypto.randomBytes(8).toString("hex"); // 16 karakter hex
+      hashedPassword = await bcrypt.hash(rawPassword, 10);
+    }
 
     const id = crypto.randomUUID();
     await pool.query(
@@ -93,14 +102,13 @@ exports.create = async (req, res) => {
 
     // 4. Catat log
     await pool.query(
-      "INSERT INTO log_aktivitas (id_user, aksi, detail) VALUES (?, ?, ?)",
-      [req.user.id, "tambah_staff", `Staff baru: ${nama} (${role})`]
+      "INSERT INTO log_aktivitas (id_log, id_user, aksi, detail) VALUES (?, ?, ?, ?)",
+      [crypto.randomUUID(), req.user.id, "tambah_staff", `Staff baru: ${nama} (${role})`]
     );
 
-    res.status(201).json({
-      message: "Staff berhasil ditambahkan",
-      defaultPassword: rawPassword // dikembalikan agar bisa disampaikan ke staff
-    });
+    const resp = { message: "Staff berhasil ditambahkan" };
+    if (rawPassword) resp.defaultPassword = rawPassword; // hanya kembalikan jika dibuat otomatis
+    res.status(201).json(resp);
   } catch (err) {
     console.error("❌ Error di create staff:", err);
     res.status(500).json({ message: "Server error" });
@@ -143,8 +151,8 @@ exports.update = async (req, res) => {
 
     // 5. Catat log
     await pool.query(
-      "INSERT INTO log_aktivitas (id_user, aksi, detail) VALUES (?, ?, ?)",
-      [req.user.id, "edit_staff", `Edit staff ID: ${id} (${email})`]
+      "INSERT INTO log_aktivitas (id_log, id_user, aksi, detail) VALUES (?, ?, ?, ?)",
+      [crypto.randomUUID(), req.user.id, "edit_staff", `Edit staff ID: ${id} (${email})`]
     );
 
     res.json({ message: "Data staff berhasil diperbarui" });
@@ -176,8 +184,8 @@ exports.deactivate = async (req, res) => {
 
     // 4. Catat log dengan nama staff
     await pool.query(
-      "INSERT INTO log_aktivitas (id_user, aksi, detail) VALUES (?, ?, ?)",
-      [req.user.id, "nonaktifkan_staff", `Staff ${staffName} (${id}) dinonaktifkan`]
+      "INSERT INTO log_aktivitas (id_log, id_user, aksi, detail) VALUES (?, ?, ?, ?)",
+      [crypto.randomUUID(), req.user.id, "nonaktifkan_staff", `Staff ${staffName} (${id}) dinonaktifkan`]
     );
 
     res.json({ message: "Staff berhasil dinonaktifkan" });

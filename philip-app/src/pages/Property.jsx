@@ -13,7 +13,7 @@ import {
 
 // ─── ROLE CONFIG ──────────────────────────────────────────────
 const ROLE_CONFIG = {
-  admin: { canAdd: true, canEdit: true, canDelete: true, canShare: true },
+  admin: { canAdd: true, canEdit: true, canDelete: true, canShare: false },
   marketing: { canAdd: false, canEdit: false, canDelete: false, canShare: true },
   direktur: { canAdd: false, canEdit: false, canDelete: false, canShare: false },
 };
@@ -462,6 +462,13 @@ export default function Property() {
   const [deleteId, setDeleteId] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  // ─── State untuk filter ──────────────────────────────────────
+  const [filterKategori, setFilterKategori] = useState("");
+  const [filterDari, setFilterDari] = useState("");
+  const [filterSampai, setFilterSampai] = useState("");
+  const [filterHargaMin, setFilterHargaMin] = useState("");
+  const [filterHargaMax, setFilterHargaMax] = useState("");
+
   // ─── State untuk dropdown vendor & marketing ────────────────
   const [vendors, setVendors] = useState([]);
   const [marketings, setMarketings] = useState([]);
@@ -485,10 +492,18 @@ export default function Property() {
   }, [loadVendorsAndMarketings]);
 
   // ─── Load data properti ──────────────────────────────────────
-  const loadData = useCallback(async (searchTerm = "") => {
+  const loadData = useCallback(async (searchTerm = "", kat = "", dari = "", sampai = "", hMin = "", hMax = "") => {
     try {
       setLoading(true);
-      const data = await propertiService.getAll({ search: searchTerm || undefined });
+      const params = {};
+      if (searchTerm) params.search = searchTerm;
+      if (kat) params.kategori = kat;
+      if (dari) params.dari = dari;
+      if (sampai) params.sampai = sampai;
+      if (hMin) params.hargaMin = hMin;
+      if (hMax) params.hargaMax = hMax;
+      
+      const data = await propertiService.getAll(params);
       setProperties(data);
     } catch {
       showToast("Gagal memuat data properti", "error");
@@ -498,8 +513,8 @@ export default function Property() {
   }, [showToast]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    loadData(search, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax);
+  }, [loadData, search, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax]);
 
   // ─── Bersihkan data form sebelum kirim ──────────────────────
   function cleanFormData(formData) {
@@ -533,6 +548,8 @@ export default function Property() {
         feed:        formData.feed        ? "1" : "0",
         sudah_share: formData.sudah_share ? "1" : "0",
       };
+      // Normalize numeric/empty fields to null or numbers
+      const payload = cleanFormData(processedData);
 
       if (editItem) {
         // Edit: kirim JSON biasa
@@ -541,17 +558,17 @@ export default function Property() {
           showToast("ID properti tidak ditemukan", "error");
           return;
         }
-        await propertiService.update(propertiId, processedData);
+        await propertiService.update(propertiId, payload);
         showToast("Properti berhasil diperbarui");
       } else {
         // Tambah baru: pakai FormData untuk upload foto
-        await propertiService.create(processedData, fotoFiles);
+        await propertiService.create(payload, fotoFiles);
         showToast("Properti berhasil ditambahkan");
       }
 
       setShowForm(false);
       setEditItem(null);
-      await loadData();
+      await loadData(search, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax);
     } catch (err) {
       showToast(err.response?.data?.message || "Gagal menyimpan properti", "error");
     } finally {
@@ -573,7 +590,7 @@ export default function Property() {
       showToast("Properti berhasil dihapus");
       setDeleteId(null);
       document.getElementById("delete-modal").close();
-      await loadData();
+      await loadData(search, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax);
     } catch {
       showToast("Gagal menghapus properti", "error");
     }
@@ -629,24 +646,82 @@ export default function Property() {
       </div>
 
       {/* ─── Search ────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-3 flex gap-2">
-        <label className="input input-bordered input-sm flex-1 flex items-center gap-2 rounded-xl border-red-100">
+      <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-3 flex gap-2 flex-wrap items-end">
+        <label className="input input-bordered input-sm flex-1 min-w-64 flex items-center gap-2 rounded-xl border-red-100">
           <HiSearch className="text-gray-400" size={16} />
           <input
             type="text"
             placeholder="Cari properti..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") loadData(search); }}
             className="grow text-sm"
           />
           {search && (
-            <button onClick={() => { setSearch(""); loadData(""); }}>
+            <button onClick={() => setSearch("")}>
               <HiX size={14} className="text-gray-400" />
             </button>
           )}
         </label>
-        <div className="flex gap-1">
+
+        {/* ─── Filter Kategori ─────────────────────────────────── */}
+        <select
+          className="select select-bordered select-sm rounded-xl border-red-100"
+          value={filterKategori}
+          onChange={e => setFilterKategori(e.target.value)}
+        >
+          <option value="">Semua Kategori</option>
+          <option value="Rumah">Rumah</option>
+          <option value="Rumah Cluster">Rumah Cluster</option>
+          <option value="Ruko">Ruko</option>
+          <option value="Tanah">Tanah</option>
+          <option value="Gudang">Gudang</option>
+          <option value="Villa">Villa</option>
+          <option value="Rumah Subsidi">Rumah Subsidi</option>
+          <option value="Kios">Kios</option>
+          <option value="Kombinasi">Kombinasi</option>
+        </select>
+
+        {/* ─── Filter Tanggal Dari ─────────────────────────────── */}
+        <input
+          type="date"
+          className="input input-bordered input-sm rounded-xl border-red-100"
+          value={filterDari}
+          onChange={e => setFilterDari(e.target.value)}
+          placeholder="Dari tanggal"
+          title="Dari tanggal"
+        />
+
+        {/* ─── Filter Tanggal Sampai ───────────────────────────── */}
+        <input
+          type="date"
+          className="input input-bordered input-sm rounded-xl border-red-100"
+          value={filterSampai}
+          onChange={e => setFilterSampai(e.target.value)}
+          placeholder="Sampai tanggal"
+          title="Sampai tanggal"
+        />
+
+        {/* ─── Filter Harga Min ────────────────────────────────── */}
+        <input
+          type="number"
+          className="input input-bordered input-sm rounded-xl border-red-100 w-32"
+          value={filterHargaMin}
+          onChange={e => setFilterHargaMin(e.target.value)}
+          placeholder="Harga min"
+          title="Harga minimum (Rp)"
+        />
+
+        {/* ─── Filter Harga Max ────────────────────────────────── */}
+        <input
+          type="number"
+          className="input input-bordered input-sm rounded-xl border-red-100 w-32"
+          value={filterHargaMax}
+          onChange={e => setFilterHargaMax(e.target.value)}
+          placeholder="Harga max"
+          title="Harga maksimum (Rp)"
+        />
+
+        <div className="flex gap-1 ml-auto">
           <button
             onClick={() => setViewMode("grid")}
             className={`btn btn-sm rounded-xl ${viewMode === "grid" ? "btn-error text-white" : "btn-ghost text-gray-400"}`}

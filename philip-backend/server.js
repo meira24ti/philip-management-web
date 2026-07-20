@@ -20,6 +20,8 @@ const allowedOrigins = process.env.CLIENT_URL
 app.use(
   cors({
     origin: (origin, callback) => {
+      // If no CLIENT_URL configured, allow all origins (development convenience).
+      if (allowedOrigins.length === 0) return callback(null, true);
       if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
       const isLocalhostOrigin = /^https?:\/\/localhost(:\d+)?$/.test(origin);
@@ -52,6 +54,18 @@ app.use("/api/laporan", laporanRoutes);
 app.use("/api/setting", settingRoutes);
 
 app.get("/", (req, res) => res.json({ status: "Philip API running" }));
+
+// Global error handler (to surface Multer and other errors as JSON)
+app.use((err, req, res, next) => {
+  console.error('GLOBAL ERROR HANDLER:', err && err.stack ? err.stack : err);
+  if (err && err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ message: 'Ukuran file melebihi batas (5MB)' });
+  }
+  if (err && err.message && err.message.includes('CORS policy')) {
+    return res.status(403).json({ message: err.message });
+  }
+  res.status(500).json({ message: 'Server error' });
+});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server berjalan di port ${PORT}`));

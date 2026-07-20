@@ -3,12 +3,27 @@ const pool = require("../config/db");
 const puppeteer = require("puppeteer");
 const crypto = require("crypto");
 const fs = require("fs").promises;
+const fsSync = require("fs");
 const path = require("path");
+
+function findChromeExecutable() {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
+  if (process.platform === "win32") {
+    const candidates = [
+      "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+      "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
+    ];
+    return candidates.find((p) => fsSync.existsSync(p)) || null;
+  }
+  return null;
+}
 
 exports.getAll = async (req, res) => {
   try {
     const [rows] = await pool.query(`
-      SELECT l.*, u.nama AS dibuat_oleh_nama
+      SELECT l.id_laporan AS id, l.*, u.nama AS dibuat_oleh_nama
       FROM laporan l
       JOIN user u ON u.id_user = l.dibuat_oleh
       ORDER BY l.created_at DESC`);
@@ -62,7 +77,16 @@ exports.generate = async (req, res) => {
     const judul = `Laporan ${tipe.charAt(0).toUpperCase() + tipe.slice(1)} — ${periodeStart} s/d ${periodeEnd}`;
     const html = buildLaporanHTML(judul, tipe, data, periodeStart, periodeEnd);
 
-    const browser = await puppeteer.launch({ args: ["--no-sandbox", "--disable-setuid-sandbox"] });
+    const browserOptions = { headless: true };
+    if (process.platform !== "win32") {
+      browserOptions.args = ["--no-sandbox", "--disable-setuid-sandbox"];
+    }
+    const chromePath = findChromeExecutable();
+    if (chromePath) {
+      browserOptions.executablePath = chromePath;
+    }
+
+    const browser = await puppeteer.launch(browserOptions);
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
     const pdfBuffer = await page.pdf({
@@ -96,13 +120,29 @@ exports.generate = async (req, res) => {
 
 exports.download = async (req, res) => {
   try {
-    // ✅ Gunakan id_laporan sesuai schema
     const [rows] = await pool.query(
       "SELECT * FROM laporan WHERE id_laporan = ?", [req.params.id]
     );
     if (!rows.length) return res.status(404).json({ message: "Laporan tidak ditemukan" });
-    res.redirect(rows[0].file_pdf_url);
+
+    const fileUrl = rows[0].file_pdf_url;
+    const relativePath = fileUrl.replace(/^\//, "");
+    const filePath = path.join(__dirname, "..", relativePath);
+
+    if (!(await fs.access(filePath).then(() => true).catch(() => false))) {
+      return res.status(404).json({ message: "File laporan tidak ditemukan" });
+    }
+
+    res.download(filePath, path.basename(filePath), (err) => {
+      if (err) {
+        console.error("Download error:", err);
+        if (!res.headersSent) {
+          res.status(500).json({ message: "Gagal mengunduh file laporan" });
+        }
+      }
+    });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };

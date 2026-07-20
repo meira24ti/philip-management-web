@@ -12,9 +12,24 @@ import { useToast } from "../components/ToastContext";
 import { propertiService } from "../services/propertiService";
 import { getImageUrl } from "../utils/imageUrl";
 
+// ─── Normalisasi Kategori (sesuai backend) ──────────────────
+const normalizeKategori = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  const mapping = {
+    rumah: "rumah",
+    "rumah cluster": "rumah",
+    ruko: "ruko",
+    tanah: "tanah",
+    gudang: "gudang",
+    villa: "villa",
+    kios: "kios",
+  };
+  return mapping[normalized] || "dll";
+};
+
 // ─── Konfigurasi role ────────────────────────────────────────
 const ROLE_CONFIG = {
-  admin:    { canAdd: true, canEdit: true, canDelete: true, canShare: true },
+  admin:    { canAdd: true, canEdit: true, canDelete: true, canShare: false },
   marketing:{ canAdd: false, canEdit: false, canDelete: false, canShare: true },
   direktur: { canAdd: false, canEdit: false, canDelete: false, canShare: false },
 };
@@ -239,7 +254,11 @@ export default function Dashboard() {
       (statusFilter === "Dijual" && (badge === "dijual" || badge === "dijual_dan_disewa")) ||
       (statusFilter === "Sewa" && (badge === "disewa" || badge === "dijual_dan_disewa"));
 
-    const matchT = typeFilter === "Semua" || p.kategori === typeFilter;
+    // ✅ FIX: Normalize kategori sebelum perbandingan
+    const normalizedKategori = normalizeKategori(p.kategori);
+    const normalizedFilter = normalizeKategori(typeFilter);
+    const matchT = typeFilter === "Semua" || normalizedKategori === normalizedFilter;
+    
     const matchL = locFilter === "Semua" || p.kota === locFilter;
     const matchU = unitFilter === "Semua" || p.status_unit === unitFilter;
 
