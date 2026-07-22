@@ -10,6 +10,10 @@ const crypto = require("crypto");
 // ─── LOGIN ────────────────────────────────────────────────────
 exports.login = async (req, res) => {
   const { email, password } = req.body;
+  // ===== DEBUG =====
+  console.log("Request Body:", req.body);
+  console.log("Email:", email);
+  // =================
   try {
     const [rows] = await pool.query(
       "SELECT * FROM user WHERE email = ? AND is_active = 1",
