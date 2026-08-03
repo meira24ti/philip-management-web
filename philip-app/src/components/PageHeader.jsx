@@ -84,7 +84,7 @@ export default function PageHeader() {
   const unreadCount = notifs.filter((notification) => !readIds.has(notification.id_log)).length;
 
   return (
-    <header className="mb-4 flex h-14 items-center justify-between rounded-2xl border border-red-100/70 bg-white/95 pl-14 pr-3 shadow-sm backdrop-blur sm:px-4 md:px-6">
+    <header className="relative z-30 mb-4 flex h-14 items-center justify-between rounded-2xl border border-red-100/70 bg-white/95 pl-14 pr-3 shadow-sm backdrop-blur sm:px-4 md:px-6">
       <div className="flex items-center gap-2">
         <HiOutlineHome className="text-red-800" />
         <p className="font-semibold text-red-900">Utama</p>
@@ -98,7 +98,7 @@ export default function PageHeader() {
           </button>
 
           {notifOpen && (
-            <div className="absolute right-0 z-50 mt-2 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-red-100 bg-white shadow-xl">
+            <div className="absolute right-0 z-[60] mt-2 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-red-100 bg-white shadow-xl">
               <div className="flex items-center justify-between border-b border-red-50 p-3">
                 <div><p className="text-sm font-bold text-red-900">Notifikasi</p><p className="text-xs text-gray-400">{unreadCount ? `${unreadCount} belum dibaca` : "Semua sudah dibaca"}</p></div>
                 <div className="flex items-center gap-1">
@@ -129,7 +129,7 @@ export default function PageHeader() {
             <span className="hidden text-sm font-semibold text-red-900 md:block">{user?.nama || "Pengguna"}</span>
             <BiChevronDown className={`text-red-700 transition-transform ${profileOpen ? "rotate-180" : ""}`} />
           </button>
-          {profileOpen && <div className="absolute right-0 z-50 mt-2 w-52 overflow-hidden rounded-2xl border border-red-100 bg-white shadow-xl">
+          {profileOpen && <div className="absolute right-0 z-[60] mt-2 w-52 overflow-hidden rounded-2xl border border-red-100 bg-white shadow-xl">
             <div className="border-b border-red-50 px-4 py-3"><p className="text-sm font-bold text-red-900">{user?.nama}</p><p className="text-xs capitalize text-gray-400">{role}</p></div>
             <Link to="/settings" onClick={() => setProfileOpen(false)} className="block px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-red-50">Profil Saya</Link>
             <Link to="/settings" onClick={() => setProfileOpen(false)} className="block px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-red-50">Pengaturan</Link>
