@@ -1,488 +1,130 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  HiSearch, HiOutlineLocationMarker, HiTag, HiHome,
-  HiChevronDown, HiX, HiOutlineEye, HiOutlineShare,
-  HiOutlinePhotograph, HiOutlineFilter,
-  HiTrendingUp, HiCollection, HiCheckCircle, HiClock,
-} from "react-icons/hi";
+import { HiChevronDown, HiHome, HiOutlineLocationMarker, HiSearch, HiTag, HiX } from "react-icons/hi";
 import { BiFilterAlt } from "react-icons/bi";
-import { useAuth } from "../context/useAuth";
-import { useToast } from "../components/ToastContext";
-import { propertiService } from "../services/propertiService";
-import { getImageUrl } from "../utils/imageUrl";
 
-// ─── Normalisasi Kategori (sesuai backend) ──────────────────
-const normalizeKategori = (value) => {
-  const normalized = String(value || "").trim().toLowerCase();
-  const mapping = {
-    rumah: "rumah",
-    "rumah cluster": "rumah",
-    ruko: "ruko",
-    tanah: "tanah",
-    gudang: "gudang",
-    villa: "villa",
-    kios: "kios",
-  };
-  return mapping[normalized] || "dll";
-};
+const properties = [
+  { id: 1, status: "DIJUAL RUMAH", address: "Jl. Limbungan", price: "Rp 7.000.000.000", image: "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=400&q=80", type: "Rumah", location: "Pekanbaru", badge: "dijual" },
+  { id: 2, status: "DIJUAL RUMAH", address: "Komp. Damai Langgeng", price: "Rp 850.000.000", image: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=400&q=80", type: "Rumah", location: "Pekanbaru", badge: "dijual" },
+  { id: 3, status: "DIJUAL/DISEWAKAN RUMAH", address: "Jl. Pramuka", price: "Rp 2.000.000.000", priceRent: "Rp 50.000.000/thn", image: "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=400&q=80", type: "Rumah", location: "Pekanbaru", badge: "dijual-sewa" },
+  { id: 4, status: "DIJUAL RUMAH", address: "Jl. Melur Permai", price: "Rp 1.050.000.000", image: "https://images.unsplash.com/photo-1576941089067-2de3c901e126?w=400&q=80", type: "Rumah", location: "Pekanbaru", badge: "dijual" },
+  { id: 5, status: "DISEWAKAN RUKO", address: "Jl. Sudirman", price: "Rp 120.000.000/thn", image: "https://images.unsplash.com/photo-1486325212027-8081e485255e?w=400&q=80", type: "Ruko", location: "Pekanbaru", badge: "sewa" },
+  { id: 6, status: "DIJUAL TANAH", address: "Jl. HR. Soebrantas", price: "Rp 500.000.000", image: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=400&q=80", type: "Tanah", location: "Kampar", badge: "dijual" },
+  { id: 7, status: "DIJUAL RUMAH", address: "Jl. Cipta Karya", price: "Rp 680.000.000", image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80", type: "Rumah", location: "Pekanbaru", badge: "dijual" },
+  { id: 8, status: "DISEWAKAN APARTEMEN", address: "Jl. Riau", price: "Rp 25.000.000/thn", image: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=400&q=80", type: "Apartemen", location: "Pekanbaru", badge: "sewa" },
+];
 
-// ─── Konfigurasi role ────────────────────────────────────────
-const ROLE_CONFIG = {
-  admin:    { canAdd: true, canEdit: true, canDelete: true, canShare: false },
-  marketing:{ canAdd: false, canEdit: false, canDelete: false, canShare: true },
-  direktur: { canAdd: false, canEdit: false, canDelete: false, canShare: false },
-};
+const badgeStyle = { dijual: "bg-red-100 text-red-800", sewa: "bg-blue-100 text-blue-800", "dijual-sewa": "bg-amber-100 text-amber-800" };
 
-// ─── Mapping enum (sesuai database) ──────────────────────────
-const badgeClass = {
-  dijual:            "badge-error",
-  disewa:            "badge-info",
-  dijual_dan_disewa: "badge-warning",
-};
-const badgeLabel = {
-  dijual:            "Dijual",
-  disewa:            "Sewa",
-  dijual_dan_disewa: "Jual/Sewa",
-};
-
-const unitClass = {
-  tersedia:  "badge-success",
-  terjual:   "badge-error",
-  tersewa:   "badge-info",
-  negosiasi: "badge-warning",
-};
-const unitLabel = {
-  tersedia:  "Tersedia",
-  terjual:   "Terjual",
-  tersewa:   "Tersewa",
-  negosiasi: "Negosiasi",
-};
-
-// ─── Dropdown component ──────────────────────────────────────
-function Dropdown({ label, options, value, setValue, open, setOpen, closeOthers }) {
+function PropertyCard({ property }) {
+  const label = property.badge === "dijual" ? "Dijual" : property.badge === "sewa" ? "Sewa" : "Jual/Sewa";
   return (
-    <div className="relative">
-      <button
-        onClick={() => { closeOthers(); setOpen(!open); }}
-        className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 bg-white text-xs font-semibold text-red-900 hover:bg-red-50 transition-all shadow-sm"
-      >
-        <span>{value === "Semua" ? label : value}</span>
-        <HiChevronDown className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} size={13} />
-      </button>
-      {open && (
-        <div className="absolute top-full mt-1 left-0 bg-white border border-red-100 rounded-xl shadow-xl z-30 min-w-36 overflow-hidden">
-          {options.map(opt => (
-            <button
-              key={opt}
-              onClick={() => { setValue(opt); setOpen(false); }}
-              className={`w-full text-left px-4 py-2.5 text-sm hover:bg-red-50 transition-colors ${value === opt ? "text-red-800 font-semibold bg-red-50" : "text-gray-700"}`}
-            >
-              {opt}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── PropertyCard ────────────────────────────────────────────
-function PropertyCard({ p, userRole }) {
-  const config = ROLE_CONFIG[userRole] || {};
-  const { showToast } = useToast();
-
-  const handleShare = async (id) => {
-    try {
-      const { shareText, waLink } = await propertiService.getShareText(id);
-      await navigator.clipboard.writeText(shareText);
-      window.open(waLink, "_blank");
-      showToast("Info properti disalin ke clipboard", "success");
-    } catch {
-      showToast("Gagal menyalin info properti", "error");
-    }
-  };
-
-  const hargaDisplay = p.harga_jual
-    ? "Rp " + Number(p.harga_jual).toLocaleString("id-ID")
-    : (p.harga_sewa ? "Rp " + Number(p.harga_sewa).toLocaleString("id-ID") + "/thn" : "-");
-
-  // Mapping badge dari jenis_penawaran
-  const badgeKey = p.jenis_penawaran || "";
-  const badge = badgeClass[badgeKey] ? badgeKey : "dijual";
-
-  return (
-    <div className="card bg-base-100 shadow hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 overflow-hidden group border border-red-50">
-      <figure className="relative h-36 overflow-hidden">
-        <img
-          src={getImageUrl(p.cover_foto) || "https://placehold.co/400x240/7A0000/white?text=Foto"}
-          alt={p.nama_jalan}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          onError={e => e.target.src = "https://placehold.co/400x240/7A0000/white?text=Foto"}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-        <div className="absolute top-2 left-2 flex gap-1 flex-wrap">
-          <span className={`badge badge-sm ${badgeClass[badge] || "badge-ghost"} text-white`}>
-            {badgeLabel[badge] || badge}
-          </span>
-        </div>
-        <div className="absolute top-2 right-2">
-          <span className={`badge badge-sm ${unitClass[p.status_unit] || "badge-ghost"}`}>
-            {unitLabel[p.status_unit] || p.status_unit}
-          </span>
-        </div>
-        <div className="absolute bottom-2 left-2">
-          <span className="text-[10px] text-white/60 font-mono bg-black/30 px-1.5 py-0.5 rounded">
-            {p.no_folder || "-"}
-          </span>
-        </div>
-      </figure>
-
-      <div className="card-body p-3 gap-1">
-        <p className="text-[10px] font-bold text-red-700 uppercase tracking-wide leading-tight">
-          {p.kategori}{p.subkategori ? ` · ${p.subkategori}` : ""}
-        </p>
-        <div className="flex items-start gap-1">
-          <HiOutlineLocationMarker size={13} className="mt-0.5 shrink-0 text-red-400" />
-          <span className="text-xs text-gray-600 leading-tight line-clamp-1">
-            {p.nama_jalan}, {p.kota}
-          </span>
-        </div>
-        <div className="flex items-center gap-1">
-          <HiTag size={13} className="shrink-0 text-red-500" />
-          <p className="text-xs font-bold text-red-900 line-clamp-1">{hargaDisplay}</p>
-        </div>
-        {p.harga_sewa && p.harga_jual && (
-          <p className="text-[10px] text-blue-600 font-medium">
-            Sewa: Rp {Number(p.harga_sewa).toLocaleString("id-ID")}/thn
-          </p>
-        )}
-        {(p.luas_tanah || p.kamar_tidur) && (
-          <div className="flex gap-1.5 flex-wrap mt-0.5">
-            {p.luas_tanah && <span className="badge badge-ghost badge-xs">LT {p.luas_tanah}m²</span>}
-            {p.luas_bangunan && <span className="badge badge-ghost badge-xs">LB {p.luas_bangunan}m²</span>}
-            {p.kamar_tidur && <span className="badge badge-ghost badge-xs">🛏{p.kamar_tidur}</span>}
-            {p.kamar_mandi && <span className="badge badge-ghost badge-xs">🚿{p.kamar_mandi}</span>}
-          </div>
-        )}
-        <div className="divider my-0.5" />
-        <div className="card-actions justify-between items-center">
-          <Link to={`/property/${p.id}`} className="btn btn-xs btn-outline btn-error rounded-lg gap-1">
-            <HiOutlineEye size={12} /> Detail
-          </Link>
-          <div className="flex gap-1">
-            {config.canShare && (
-              <button
-                onClick={() => handleShare(p.id)}
-                className="btn btn-xs btn-ghost text-blue-500 hover:bg-blue-50 rounded-lg"
-                title="Salin & Share"
-              >
-                <HiOutlineShare size={13} />
-              </button>
-            )}
-            <Link to={`/property/${p.id}`} className="btn btn-xs btn-ghost text-gray-400 hover:bg-gray-100 rounded-lg" title="Lihat foto">
-              <HiOutlinePhotograph size={13} />
-            </Link>
-          </div>
-        </div>
+    <Link to={`/property/${property.id}`} className="group block overflow-hidden rounded-2xl bg-white shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
+      <div className="relative h-28 overflow-hidden sm:h-36 md:h-40">
+        <img src={property.image} alt={property.address} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" onError={(event) => { event.currentTarget.src = "https://placehold.co/400x300/8B0000/white?text=Foto"; }} />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+        <span className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-xs font-bold ${badgeStyle[property.badge]}`}>{label}</span>
       </div>
-    </div>
+      <div className="p-3">
+        <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-red-800 sm:text-xs">{property.status}</p>
+        <div className="mb-1.5 flex items-start gap-1 text-red-400"><HiOutlineLocationMarker className="mt-0.5 shrink-0" size={14} /><span className="truncate text-xs font-medium leading-tight text-gray-600">{property.address}</span></div>
+        <div className="flex items-center gap-1 text-red-500"><HiTag className="shrink-0" size={14} /><p className="truncate text-xs font-bold leading-tight text-red-900">{property.price}</p></div>
+        {property.priceRent && <p className="mt-0.5 text-[10px] font-semibold text-blue-600">Sewa: {property.priceRent}</p>}
+      </div>
+    </Link>
   );
 }
 
-// ─── MAIN DASHBOARD ──────────────────────────────────────────
+function FilterSelect({ label, value, onChange, options }) {
+  return (
+    <label className="text-xs font-semibold text-gray-600">
+      {label}
+      <select value={value} onChange={onChange} className="select mt-1 h-10 w-full rounded-lg border-red-100 bg-white text-sm font-medium text-gray-700 focus:border-red-400 focus:outline-none">
+        {options.map((option) => <option key={option}>{option}</option>)}
+      </select>
+    </label>
+  );
+}
+
 export default function Dashboard() {
-  const { role } = useAuth();
-  const { showToast } = useToast();
-
-  const [properties, setProperties] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
   const [search, setSearch] = useState("");
   const [statusFilter, setStatus] = useState("Semua");
   const [typeFilter, setType] = useState("Semua");
-  const [locFilter, setLoc] = useState("Semua");
-  const [unitFilter, setUnit] = useState("Semua");
-  const [statusOpen, setStatusOpen] = useState(false);
-  const [typeOpen, setTypeOpen] = useState(false);
-  const [locOpen, setLocOpen] = useState(false);
-  const [unitOpen, setUnitOpen] = useState(false);
-  const [showFilter, setShowFilter] = useState(false);
+  const [locationFilter, setLocation] = useState("Semua");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const activeFilterCount = [statusFilter, typeFilter, locationFilter].filter((value) => value !== "Semua").length;
 
-  // ─── Fetch data ─────────────────────────────────────────────
-  useEffect(() => {
-    propertiService.getAll()
-      .then(data => {
-        setProperties(data);
-        setError("");
-      })
-      .catch(err => {
-        console.error(err);
-        setError("Gagal memuat data properti.");
-        showToast("Gagal memuat data properti", "error");
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
-  // ─── Statistik ──────────────────────────────────────────────
-  const stats = [
-    { label: "Total Listing", value: properties.length, icon: HiCollection, color: "text-red-700", bg: "bg-red-50" },
-    { label: "Tersedia", value: properties.filter(p => p.status_unit === "tersedia").length, icon: HiCheckCircle, color: "text-green-700", bg: "bg-green-50" },
-    { label: "Terjual/Tersewa", value: properties.filter(p => ["terjual", "tersewa"].includes(p.status_unit)).length, icon: HiTrendingUp, color: "text-blue-700", bg: "bg-blue-50" },
-    { label: "Negosiasi", value: properties.filter(p => p.status_unit === "negosiasi").length, icon: HiClock, color: "text-amber-700", bg: "bg-amber-50" },
-  ];
-
-  // ─── Filtering ──────────────────────────────────────────────
-  const filtered = properties.filter(p => {
-    const q = search.toLowerCase();
-    const matchQ =
-      (p.nama_jalan?.toLowerCase().includes(q) || false) ||
-      (p.kota?.toLowerCase().includes(q) || false) ||
-      (p.kategori?.toLowerCase().includes(q) || false);
-
-    // Mapping badge dari jenis_penawaran
-    const badgeMap = {
-      dijual: "dijual",
-      disewa: "disewa",
-      dijual_dan_disewa: "dijual_dan_disewa",
-    };
-    const badge = badgeMap[p.jenis_penawaran] || "";
-
-    const matchS =
-      statusFilter === "Semua" ||
-      (statusFilter === "Dijual" && (badge === "dijual" || badge === "dijual_dan_disewa")) ||
-      (statusFilter === "Sewa" && (badge === "disewa" || badge === "dijual_dan_disewa"));
-
-    // ✅ FIX: Normalize kategori sebelum perbandingan
-    const normalizedKategori = normalizeKategori(p.kategori);
-    const normalizedFilter = normalizeKategori(typeFilter);
-    const matchT = typeFilter === "Semua" || normalizedKategori === normalizedFilter;
-    
-    const matchL = locFilter === "Semua" || p.kota === locFilter;
-    const matchU = unitFilter === "Semua" || p.status_unit === unitFilter;
-
-    return matchQ && matchS && matchT && matchL && matchU;
+  const filtered = properties.filter((property) => {
+    const query = search.toLowerCase();
+    return (
+      (property.address.toLowerCase().includes(query) || property.status.toLowerCase().includes(query)) &&
+      (statusFilter === "Semua" || (statusFilter === "Dijual" && property.badge.includes("dijual")) || (statusFilter === "Disewakan" && property.badge.includes("sewa"))) &&
+      (typeFilter === "Semua" || property.type === typeFilter) &&
+      (locationFilter === "Semua" || property.location === locationFilter)
+    );
   });
 
-  const activeFilters = [
-    statusFilter !== "Semua" && { label: `Penawaran: ${statusFilter}`, clear: () => setStatus("Semua") },
-    typeFilter !== "Semua" && { label: `Tipe: ${typeFilter}`, clear: () => setType("Semua") },
-    locFilter !== "Semua" && { label: `Kota: ${locFilter}`, clear: () => setLoc("Semua") },
-    unitFilter !== "Semua" && { label: `Status: ${unitLabel[unitFilter] || unitFilter}`, clear: () => setUnit("Semua") },
-  ].filter(Boolean);
-
-  const closeAll = () => {
-    setStatusOpen(false);
-    setTypeOpen(false);
-    setLocOpen(false);
-    setUnitOpen(false);
+  const resetFilters = () => {
+    setSearch("");
+    setStatus("Semua");
+    setType("Semua");
+    setLocation("Semua");
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <span className="loading loading-spinner loading-lg text-red-800" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="text-center py-16 text-red-600">
-        <p className="font-semibold">{error}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="mt-4 btn btn-sm btn-outline btn-error"
-        >
-          Coba lagi
-        </button>
-      </div>
-    );
-  }
+  useEffect(() => {
+    document.title = `${filtered.length} properti tersedia`;
+  }, [filtered.length]);
 
   return (
-    <div className="space-y-4" onClick={closeAll}>
-      {/* ─── Hero ──────────────────────────────────────────────── */}
-      <div
-        className="relative w-full rounded-2xl overflow-hidden h-44 md:h-52"
-        style={{ background: "linear-gradient(135deg,#7A0000 0%,#3D0000 60%,#1a0000 100%)" }}
-      >
-        <div
-          className="absolute inset-0 opacity-10"
-          style={{ backgroundImage: "radial-gradient(circle,#fff 1px,transparent 1px)", backgroundSize: "28px 28px" }}
-        />
-        <div
-          className="absolute right-0 top-0 w-1/2 h-full opacity-15"
-          style={{ background: "radial-gradient(ellipse at right,#ff6b6b,transparent)" }}
-        />
-
-        {/* Stats desktop */}
-        <div className="absolute top-3 right-3 hidden lg:flex gap-2">
-          {stats.map(s => (
-            <div key={s.label} className={`${s.bg} rounded-xl px-3 py-2 text-center min-w-[68px] shadow-sm`}>
-              <p className={`text-lg font-bold leading-tight ${s.color}`}>{s.value}</p>
-              <p className="text-[10px] text-gray-500 leading-tight">{s.label}</p>
-            </div>
-          ))}
+    <div className="space-y-4">
+      <section className="relative h-44 w-full overflow-hidden rounded-2xl md:h-56 lg:h-64" style={{ background: "linear-gradient(135deg, #7A0000 0%, #3D0000 60%, #1a0000 100%)" }}>
+        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)", backgroundSize: "28px 28px" }} />
+        <div className="relative z-10 flex h-full max-w-lg flex-col justify-center px-6 md:px-10 lg:px-14">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-red-300">Philip Real Estate</p>
+          <h1 className="font-serif text-2xl font-bold leading-tight text-white md:text-3xl lg:text-4xl">Build Your<br />Future Home <span className="font-normal italic text-red-300">with us</span></h1>
+          <p className="mt-2 max-w-xs text-xs text-red-200 md:mt-3 md:text-sm">Mulai langkah besar dari keputusan hari ini.</p>
         </div>
+      </section>
 
-        <div className="relative z-10 flex flex-col justify-center h-full px-6 md:px-10 max-w-lg">
-          <p className="text-red-300 text-[10px] font-semibold uppercase tracking-widest mb-1">
-            Philip Real Estate · Pekanbaru
-          </p>
-          <h1 className="text-white text-2xl md:text-3xl font-bold leading-tight font-serif">
-            Build Your Future<br />
-            <span className="italic font-normal text-red-300">with us</span>
-          </h1>
-          <p className="text-red-200 text-xs mt-2">Mulai langkah besar dari keputusan hari ini.</p>
-        </div>
-      </div>
-
-      {/* ─── Stats mobile ─────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-2 min-[420px]:grid-cols-4 lg:hidden">
-        {stats.map(s => (
-          <div key={s.label} className={`${s.bg} rounded-xl p-2 text-center`}>
-            <p className={`text-base font-bold ${s.color}`}>{s.value}</p>
-            <p className="text-[10px] text-gray-500 leading-tight">{s.label}</p>
+      <section className="rounded-2xl border border-red-100 bg-white p-3 shadow-sm md:p-4">
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1">
+            <HiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input type="search" placeholder="Cari properti atau alamat..." value={search} onChange={(event) => setSearch(event.target.value)} className="w-full rounded-xl border border-red-100 py-2.5 pl-11 pr-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-200" />
           </div>
-        ))}
-      </div>
-
-      {/* ─── Search & Filter ──────────────────────────────────── */}
-      <div
-        className="bg-white rounded-2xl border border-red-100 shadow-sm p-3 md:p-4"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex gap-2 items-center">
-          <label className="input input-bordered input-sm flex min-w-0 flex-1 items-center gap-2 rounded-xl border-red-100 focus-within:border-red-300 focus-within:outline-red-200">
-            <HiSearch className="text-gray-400" size={16} />
-            <input
-              type="text"
-              placeholder="Cari alamat, tipe, kota..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="grow text-sm"
-            />
-            {search && (
-              <button onClick={() => setSearch("")} className="text-gray-400 hover:text-gray-600">
-                <HiX size={14} />
-              </button>
-            )}
-          </label>
-          <button
-            onClick={() => setShowFilter(!showFilter)}
-            className={`btn btn-sm rounded-xl gap-1.5 ${showFilter
-              ? "btn-error text-white"
-              : "btn-outline border-red-200 text-red-800 hover:bg-red-50 hover:border-red-300"
-            }`}
-          >
-            <HiOutlineFilter size={15} />
-            <span className="hidden sm:inline text-xs">Filter</span>
-            {activeFilters.length > 0 && (
-              <span className="badge badge-xs badge-warning">{activeFilters.length}</span>
-            )}
+          <button type="button" onClick={() => setFilterOpen((open) => !open)} aria-expanded={filterOpen} className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-semibold transition-colors ${filterOpen || activeFilterCount ? "border-red-200 bg-red-50 text-red-800" : "border-red-100 bg-white text-red-700 hover:bg-red-50"}`}>
+            <BiFilterAlt size={18} />
+            <span className="hidden sm:inline">Filter</span>
+            {activeFilterCount > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-red-800 px-1 text-[11px] text-white">{activeFilterCount}</span>}
+            <HiChevronDown className={`hidden transition-transform sm:block ${filterOpen ? "rotate-180" : ""}`} size={15} />
           </button>
         </div>
 
-        {showFilter && (
-          <div className="flex items-center gap-2 flex-wrap mt-3 pt-3 border-t border-red-50">
-            <div className="flex items-center gap-1 text-red-700">
-              <BiFilterAlt size={14} />
-              <span className="text-[11px] font-bold uppercase tracking-wide">Filter:</span>
+        {filterOpen && (
+          <div className="mt-3 border-t border-red-100 pt-3">
+            <div className="grid gap-2 sm:grid-cols-3">
+              <FilterSelect label="Status transaksi" value={statusFilter} onChange={(event) => setStatus(event.target.value)} options={["Semua", "Dijual", "Disewakan"]} />
+              <FilterSelect label="Tipe properti" value={typeFilter} onChange={(event) => setType(event.target.value)} options={["Semua", "Rumah", "Ruko", "Tanah", "Apartemen"]} />
+              <FilterSelect label="Lokasi" value={locationFilter} onChange={(event) => setLocation(event.target.value)} options={["Semua", "Pekanbaru", "Kampar"]} />
             </div>
-            <Dropdown
-              label="Penawaran"
-              options={["Semua", "Dijual", "Sewa"]}
-              value={statusFilter}
-              setValue={setStatus}
-              open={statusOpen}
-              setOpen={setStatusOpen}
-              closeOthers={() => { setTypeOpen(false); setLocOpen(false); setUnitOpen(false); }}
-            />
-            <Dropdown
-              label="Tipe"
-              options={["Semua", "Rumah", "Ruko", "Tanah", "Gudang", "Villa", "Kios"]}
-              value={typeFilter}
-              setValue={setType}
-              open={typeOpen}
-              setOpen={setTypeOpen}
-              closeOthers={() => { setStatusOpen(false); setLocOpen(false); setUnitOpen(false); }}
-            />
-            <Dropdown
-              label="Kota"
-              options={["Semua", "Pekanbaru", "Kampar", "Siak", "Pelalawan"]}
-              value={locFilter}
-              setValue={setLoc}
-              open={locOpen}
-              setOpen={setLocOpen}
-              closeOthers={() => { setStatusOpen(false); setTypeOpen(false); setUnitOpen(false); }}
-            />
-            <Dropdown
-              label="Status Unit"
-              options={["Semua", "tersedia", "terjual", "tersewa", "negosiasi"]}  // ✅ pakai 'negosiasi'
-              value={unitFilter}
-              setValue={setUnit}
-              open={unitOpen}
-              setOpen={setUnitOpen}
-              closeOthers={() => { setStatusOpen(false); setTypeOpen(false); setLocOpen(false); }}
-            />
-            {activeFilters.length > 0 && (
-              <button
-                onClick={() => {
-                  setStatus("Semua");
-                  setType("Semua");
-                  setLoc("Semua");
-                  setUnit("Semua");
-                }}
-                className="text-xs text-red-400 hover:text-red-600 font-semibold underline"
-              >
-                Reset
-              </button>
-            )}
+            {(activeFilterCount > 0 || search) && <button type="button" onClick={resetFilters} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-red-700 hover:text-red-900"><HiX size={15} /> Reset pencarian & filter</button>}
           </div>
         )}
+      </section>
 
-        {activeFilters.length > 0 && (
-          <div className="flex gap-1.5 flex-wrap mt-2">
-            {activeFilters.map(f => (
-              <span key={f.label} className="badge badge-sm bg-red-100 text-red-800 border-red-200 gap-1">
-                {f.label}
-                <button onClick={f.clear}><HiX size={11} /></button>
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ─── Grid properti ────────────────────────────────────── */}
-      <div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
-          <h2 className="text-base font-bold text-red-900">
-            Daftar Properti
-            {activeFilters.length > 0 && (
-              <span className="text-red-300 font-normal text-sm ml-1">(difilter)</span>
-            )}
-          </h2>
-          <span className="badge badge-ghost text-red-400 font-semibold">
-            {filtered.length} properti
-          </span>
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-red-900">Properti Rekomendasi</h2>
+          <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-400">{filtered.length} properti</span>
         </div>
-
         {filtered.length === 0 ? (
-          <div className="text-center py-16 text-gray-400">
-            <HiHome size={40} className="mx-auto mb-3 opacity-30" />
-            <p className="font-semibold text-sm">Properti tidak ditemukan</p>
-            <p className="text-xs mt-1">Coba ubah filter atau kata kunci pencarian</p>
-          </div>
+          <div className="py-16 text-center text-gray-400"><HiHome className="mx-auto mb-3 opacity-40" /><p className="font-semibold">Properti tidak ditemukan</p></div>
         ) : (
-          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
-            {filtered.map(p => (
-              <PropertyCard key={p.id} p={p} userRole={role} />
-            ))}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+            {filtered.map((property) => <PropertyCard key={property.id} property={property} />)}
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

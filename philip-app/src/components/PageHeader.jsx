@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { BiBell, BiChevronDown, BiRefresh } from "react-icons/bi";
 import { HiOutlineCheck, HiOutlineHome } from "react-icons/hi";
 import { useAuth } from "../context/useAuth";
@@ -20,6 +20,7 @@ const readNotificationIds = (userId) => {
 export default function PageHeader() {
   const { user, role, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifs, setNotifs] = useState([]);
@@ -82,12 +83,20 @@ export default function PageHeader() {
   const avatarKey = user?.foto_profil || "no-avatar";
   const initials = user?.nama ? user.nama.split(" ").map((name) => name[0]).join("").slice(0, 2).toUpperCase() : "?";
   const unreadCount = notifs.filter((notification) => !readIds.has(notification.id_log)).length;
+  const pageTitle = (() => {
+    if (location.pathname.startsWith("/property/")) return "Detail Properti";
+    if (location.pathname === "/property") return "Properti";
+    if (location.pathname === "/staff") return "Staff";
+    if (location.pathname === "/reports") return "Laporan";
+    if (location.pathname === "/settings") return "Pengaturan";
+    return "Dashboard";
+  })();
 
   return (
     <header className="relative z-30 mb-4 flex h-14 items-center justify-between rounded-2xl border border-red-100/70 bg-white/95 pl-14 pr-3 shadow-sm backdrop-blur sm:px-4 md:px-6">
       <div className="flex items-center gap-2">
         <HiOutlineHome className="text-red-800" />
-        <p className="font-semibold text-red-900">Utama</p>
+        <p className="font-semibold text-red-900">{pageTitle}</p>
       </div>
 
       <div className="flex items-center gap-3">
@@ -98,7 +107,7 @@ export default function PageHeader() {
           </button>
 
           {notifOpen && (
-            <div className="absolute right-0 z-[60] mt-2 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-red-100 bg-white shadow-xl">
+            <div className="absolute right-0 z-[60] mt-2 w-[calc(100vw_-_1.5rem)] max-w-[22rem] overflow-hidden rounded-2xl border border-red-100 bg-white shadow-xl">
               <div className="flex items-center justify-between border-b border-red-50 p-3">
                 <div><p className="text-sm font-bold text-red-900">Notifikasi</p><p className="text-xs text-gray-400">{unreadCount ? `${unreadCount} belum dibaca` : "Semua sudah dibaca"}</p></div>
                 <div className="flex items-center gap-1">
