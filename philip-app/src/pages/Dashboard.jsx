@@ -340,7 +340,7 @@ export default function Dashboard() {
       </div>
 
       {/* ─── Stats mobile ─────────────────────────────────────── */}
-      <div className="grid grid-cols-4 gap-2 lg:hidden">
+      <div className="grid grid-cols-2 gap-2 min-[420px]:grid-cols-4 lg:hidden">
         {stats.map(s => (
           <div key={s.label} className={`${s.bg} rounded-xl p-2 text-center`}>
             <p className={`text-base font-bold ${s.color}`}>{s.value}</p>
@@ -355,7 +355,7 @@ export default function Dashboard() {
         onClick={e => e.stopPropagation()}
       >
         <div className="flex gap-2 items-center">
-          <label className="input input-bordered input-sm flex-1 flex items-center gap-2 rounded-xl border-red-100 focus-within:border-red-300 focus-within:outline-red-200">
+          <label className="input input-bordered input-sm flex min-w-0 flex-1 items-center gap-2 rounded-xl border-red-100 focus-within:border-red-300 focus-within:outline-red-200">
             <HiSearch className="text-gray-400" size={16} />
             <input
               type="text"
@@ -457,7 +457,7 @@ export default function Dashboard() {
 
       {/* ─── Grid properti ────────────────────────────────────── */}
       <div>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
           <h2 className="text-base font-bold text-red-900">
             Daftar Properti
             {activeFilters.length > 0 && (
@@ -476,7 +476,7 @@ export default function Dashboard() {
             <p className="text-xs mt-1">Coba ubah filter atau kata kunci pencarian</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
+          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
             {filtered.map(p => (
               <PropertyCard key={p.id} p={p} userRole={role} />
             ))}

@@ -58,7 +58,7 @@ export default function PageHeader() {
   };
  
   return (
-    <header className="h-14 bg-white rounded-2xl flex items-center justify-between px-4 md:px-6 shadow-sm mb-4">
+    <header className="h-14 rounded-2xl border border-red-100/70 bg-white/95 pl-14 pr-3 shadow-sm backdrop-blur sm:px-4 md:px-6 mb-4 flex items-center justify-between">
  
       {/* Left */}
       <div className="flex items-center gap-2">
@@ -82,7 +82,7 @@ export default function PageHeader() {
           </button>
  
           {notifOpen && (
-            <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-red-100 z-50">
+            <div className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-2rem))] bg-white rounded-2xl shadow-xl border border-red-100 z-50">
               <div className="p-4 border-b border-red-50">
                 <p className="font-bold text-red-900 text-sm">Notifikasi</p>
               </div>

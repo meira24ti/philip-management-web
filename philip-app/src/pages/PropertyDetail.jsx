@@ -181,8 +181,8 @@ export default function PropertyDetail() {
     <div className="space-y-4">
 
       {/* ── Breadcrumb ── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-2">
           <Link to="/property" className="btn btn-sm btn-ghost rounded-xl gap-1 text-gray-500 hover:text-red-800">
             <HiArrowLeft size={15} /> Properti
           </Link>
@@ -191,7 +191,7 @@ export default function PropertyDetail() {
             {p.nama_jalan || p.id}
           </span>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {config.canShare && (
             <button
               onClick={() => handleShare(p.id)}
@@ -223,7 +223,7 @@ export default function PropertyDetail() {
 
           {/* ── Gallery ── */}
           <div className="card bg-base-100 shadow border border-red-50 overflow-hidden">
-            <div className="relative h-64 md:h-80 bg-gray-100">
+            <div className="relative h-52 sm:h-64 md:h-80 bg-gray-100">
               <img
                 src={getImageUrl(fotoList[fotoIdx]?.url_foto) || coverFoto}
                 alt="foto properti"

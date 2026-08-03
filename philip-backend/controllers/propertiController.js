@@ -2,10 +2,10 @@
 // VERSI FINAL — SEMUA SELECT PAKAI ALIAS id UNTUK KOMPATIBILITAS FRONTEND
 const pool   = require("../config/db");
 const multer = require("multer");
-const path   = require("path");
 const fs     = require("fs").promises;
 const crypto = require("crypto");
 const { normalizeDecimalValue, sanitizeForColumnLimits } = require("../utils/numberUtils");
+const { imageFileFilter, safeImageExtension } = require("../utils/uploadValidation");
 
 // ─── Helper ──────────────────────────────────────────────────────
 const toSqlBoolean = (value) => {
@@ -46,9 +46,13 @@ const storage = multer.diskStorage({
     cb(null, dir);
   },
   filename: (req, file, cb) =>
-    cb(null, Date.now() + path.extname(file.originalname))
+    cb(null, `${Date.now()}-${crypto.randomUUID()}${safeImageExtension(file)}`)
 });
-exports.upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+exports.upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: imageFileFilter,
+});
 
 // ─── GET /api/properti ────────────────────────────────────────
 exports.getAll = async (req, res) => {
@@ -175,9 +179,6 @@ exports.getMarketingList = async (req, res) => {
 exports.create = async (req, res) => {
   const conn = await pool.getConnection();
   try {
-    // Diagnostic logging for failed uploads
-    try { console.log('DEBUG create properti - body keys:', Object.keys(req.body || {})); } catch(e){}
-    try { console.log('DEBUG create properti - files count:', (req.files && req.files.length) || 0); } catch(e){}
     await conn.beginTransaction();
 
     const id = crypto.randomUUID();

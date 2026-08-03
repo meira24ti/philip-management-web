@@ -3,17 +3,13 @@ const pool = require("../config/db");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
-const path = require("path");
 const fs = require("fs").promises;
 const crypto = require("crypto");
+const { imageFileFilter, safeImageExtension } = require("../utils/uploadValidation");
 
 // ─── LOGIN ────────────────────────────────────────────────────
 exports.login = async (req, res) => {
   const { email, password } = req.body;
-  // ===== DEBUG =====
-  console.log("Request Body:", req.body);
-  console.log("Email:", email);
-  // =================
   try {
     const [rows] = await pool.query(
       "SELECT * FROM user WHERE email = ? AND is_active = 1",
@@ -32,7 +28,7 @@ exports.login = async (req, res) => {
     const token = jwt.sign(
       { id: user.id_user, nama: user.nama, email: user.email, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      { expiresIn: process.env.JWT_EXPIRES_IN || "8h" }
     );
 
     // Catat log login
@@ -66,12 +62,10 @@ exports.logout = async (req, res) => {
 // ─── ME ──────────────────────────────────────────────────────
 exports.me = async (req, res) => {
   try {
-    console.log("🔍 req.user.id:", req.user.id); // Tambahkan log
     const [rows] = await pool.query(
       "SELECT id_user as id, nama, email, role, foto_profil, no_hp FROM user WHERE id_user = ?",
       [req.user.id]
     );
-    console.log("📦 rows found:", rows.length); // Tambahkan log
     if (!rows.length) {
       return res.status(404).json({ message: "User tidak ditemukan" });
     }
@@ -93,19 +87,13 @@ const fotoStorage = multer.diskStorage({
     }
   },
   filename: (req, file, cb) =>
-    cb(null, req.user.id + path.extname(file.originalname))
+    cb(null, `${req.user.id}-${crypto.randomUUID()}${safeImageExtension(file)}`)
 });
 
 exports.uploadFoto = multer({
   storage: fotoStorage,
   limits: { fileSize: 2 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) {
-      cb(null, true);
-    } else {
-      cb(new Error("Hanya file gambar yang diizinkan"));
-    }
-  }
+  fileFilter: imageFileFilter,
 });
 
 // ─── UPDATE PROFIL ───────────────────────────────────────────

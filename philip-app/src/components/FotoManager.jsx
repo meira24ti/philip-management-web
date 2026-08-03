@@ -58,7 +58,7 @@ export function FotoManager({ fotos: initialFotos, propertiId, onUpdate }) {
 
     return (
         <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
                 <p className="text-sm font-bold text-red-900">
                     Atur Urutan Foto (drag untuk menggeser)
                 </p>

@@ -93,7 +93,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
       {/* ─── Identitas ─────────────────────────────────────────── */}
       <div>
         <p className="text-sm font-bold text-red-900 mb-2">Identitas Unit</p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="form-control">
             <div className="label py-0.5"><span className={labelCls}>No. Folder</span></div>
             <input className={inputCls} value={form.no_folder}
@@ -110,7 +110,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
       {/* ─── Tipe Properti ────────────────────────────────────── */}
       <div>
         <p className="text-sm font-bold text-red-900 mb-2">Tipe Properti</p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="form-control">
             <div className="label py-0.5"><span className={labelCls}>Kategori *</span></div>
             <select className={selectCls} value={form.kategori}
@@ -244,7 +244,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
             <input className={inputCls} value={form.nama_jalan}
               onChange={e => set("nama_jalan", e.target.value)} placeholder="Jl. Sudirman No. 10" required />
           </label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="form-control">
               <div className="label py-0.5"><span className={labelCls}>Area / Kecamatan</span></div>
               <input className={inputCls} value={form.area_kecamatan}
@@ -264,8 +264,8 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
       {/* ─── Penawaran & Harga ────────────────────────────────── */}
       <div>
         <p className="text-sm font-bold text-red-900 mb-2">Penawaran & Harga</p>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="form-control col-span-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="form-control col-span-1 sm:col-span-2">
             <div className="label py-0.5"><span className={labelCls}>Jenis Penawaran *</span></div>
             <select className={selectCls} value={form.jenis_penawaran}
               onChange={e => set("jenis_penawaran", e.target.value)} required>
@@ -294,7 +294,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
       {/* ─── Ukuran ────────────────────────────────────────────── */}
       <div>
         <p className="text-sm font-bold text-red-900 mb-2">Ukuran</p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="form-control">
             <div className="label py-0.5"><span className={labelCls}>Luas Tanah m² *</span></div>
             <input type="number" className={inputCls} value={form.luas_tanah}
@@ -321,7 +321,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
       {/* ─── Spesifikasi ───────────────────────────────────────── */}
       <div>
         <p className="text-sm font-bold text-red-900 mb-2">Spesifikasi Teknis</p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {[
             ["carport", "Carport", ["Tidak ada", "1 mobil", "2 mobil", "3 mobil", "Lebih dari 3"]],
             ["daya_listrik", "Daya Listrik", ["900 Watt", "1.300 Watt", "2.200 Watt", "3.500 Watt", "4.400 Watt", "5.500 Watt", "Lebih dari 5.500 Watt"]],
@@ -368,7 +368,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
       {/* ─── Status Operasional ───────────────────────────────── */}
       <div>
         <p className="text-sm font-bold text-red-900 mb-2">Status Operasional</p>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {[["spanduk", "Spanduk Terpasang"], ["kunci", "Kunci Dititip"],
           ["feed", "Feed Dibuat"], ["sudah_share", "Sudah Di-share"]].map(([k, l]) => (
             <label key={k} className="flex items-center gap-2 cursor-pointer">
@@ -414,7 +414,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
       {/* ─── Google Maps ──────────────────────────────────────── */}
       <div>
         <p className="text-sm font-bold text-red-900 mb-2">Lokasi Google Maps</p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="form-control">
             <div className="label py-0.5"><span className={labelCls}>Latitude</span></div>
             <input className={inputCls} value={form.latitude}
@@ -425,7 +425,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
             <input className={inputCls} value={form.longtitude}
               onChange={e => set("longtitude", e.target.value)} placeholder="101.4478" />
           </label>
-          <label className="form-control col-span-2">
+          <label className="form-control col-span-1 sm:col-span-2">
             <div className="label py-0.5"><span className={labelCls}>Link Google Maps</span></div>
             <input className={inputCls} value={form.gmaps_url}
               onChange={e => set("gmaps_url", e.target.value)} placeholder="https://maps.google.com/..." />
@@ -434,7 +434,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
       </div>
 
       {/* ─── Tombol ───────────────────────────────────────────── */}
-      <div className="flex justify-end gap-2 pt-2 sticky bottom-0 bg-white py-3 border-t border-red-50">
+      <div className="flex flex-wrap justify-end gap-2 pt-2 sticky bottom-0 bg-white py-3 border-t border-red-50">
         <button type="button" onClick={onCancel}
           className="btn btn-sm btn-ghost rounded-xl">Batal</button>
         <button type="submit" disabled={loading}
@@ -630,7 +630,7 @@ export default function Property() {
   return (
     <div className="space-y-4">
       {/* ─── Header ────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-red-900">Manajemen Properti</h1>
           <p className="text-sm text-gray-500">{properties.length} properti terdaftar</p>
@@ -638,7 +638,7 @@ export default function Property() {
         {config.canAdd && (
           <button
             onClick={() => { setEditItem(null); setShowForm(true); }}
-            className="btn btn-sm btn-error text-white rounded-xl gap-1 shadow"
+            className="btn btn-sm btn-error text-white rounded-xl gap-1 shadow w-full sm:w-auto"
           >
             <HiOutlinePlus size={16} /> Tambah Properti
           </button>
@@ -647,7 +647,7 @@ export default function Property() {
 
       {/* ─── Search ────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-3 flex gap-2 flex-wrap items-end">
-        <label className="input input-bordered input-sm flex-1 min-w-64 flex items-center gap-2 rounded-xl border-red-100">
+        <label className="input input-bordered input-sm flex min-w-0 w-full sm:w-auto flex-1 items-center gap-2 rounded-xl border-red-100">
           <HiSearch className="text-gray-400" size={16} />
           <input
             type="text"
@@ -665,7 +665,7 @@ export default function Property() {
 
         {/* ─── Filter Kategori ─────────────────────────────────── */}
         <select
-          className="select select-bordered select-sm rounded-xl border-red-100"
+          className="select select-bordered select-sm rounded-xl border-red-100 w-full sm:w-auto"
           value={filterKategori}
           onChange={e => setFilterKategori(e.target.value)}
         >
@@ -684,7 +684,7 @@ export default function Property() {
         {/* ─── Filter Tanggal Dari ─────────────────────────────── */}
         <input
           type="date"
-          className="input input-bordered input-sm rounded-xl border-red-100"
+          className="input input-bordered input-sm rounded-xl border-red-100 w-full sm:w-auto"
           value={filterDari}
           onChange={e => setFilterDari(e.target.value)}
           placeholder="Dari tanggal"
@@ -694,7 +694,7 @@ export default function Property() {
         {/* ─── Filter Tanggal Sampai ───────────────────────────── */}
         <input
           type="date"
-          className="input input-bordered input-sm rounded-xl border-red-100"
+          className="input input-bordered input-sm rounded-xl border-red-100 w-full sm:w-auto"
           value={filterSampai}
           onChange={e => setFilterSampai(e.target.value)}
           placeholder="Sampai tanggal"
@@ -704,7 +704,7 @@ export default function Property() {
         {/* ─── Filter Harga Min ────────────────────────────────── */}
         <input
           type="number"
-          className="input input-bordered input-sm rounded-xl border-red-100 w-32"
+          className="input input-bordered input-sm rounded-xl border-red-100 w-full sm:w-32"
           value={filterHargaMin}
           onChange={e => setFilterHargaMin(e.target.value)}
           placeholder="Harga min"
@@ -714,14 +714,14 @@ export default function Property() {
         {/* ─── Filter Harga Max ────────────────────────────────── */}
         <input
           type="number"
-          className="input input-bordered input-sm rounded-xl border-red-100 w-32"
+          className="input input-bordered input-sm rounded-xl border-red-100 w-full sm:w-32"
           value={filterHargaMax}
           onChange={e => setFilterHargaMax(e.target.value)}
           placeholder="Harga max"
           title="Harga maksimum (Rp)"
         />
 
-        <div className="flex gap-1 ml-auto">
+        <div className="flex gap-1 sm:ml-auto">
           <button
             onClick={() => setViewMode("grid")}
             className={`btn btn-sm rounded-xl ${viewMode === "grid" ? "btn-error text-white" : "btn-ghost text-gray-400"}`}
@@ -755,7 +755,7 @@ export default function Property() {
           )}
         </div>
       ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {properties.map(p => (
             <div key={p.id} className="card bg-base-100 shadow hover:shadow-md transition-all border border-red-50 overflow-hidden group">
               <figure className="relative h-32 overflow-hidden">
@@ -816,7 +816,8 @@ export default function Property() {
         </div>
       ) : (
         <div className="card bg-base-100 shadow border border-red-50 overflow-hidden">
-          <table className="table table-sm">
+          <div className="overflow-x-auto">
+          <table className="table table-sm min-w-[40rem]">
             <thead>
               <tr className="text-xs text-gray-500 border-b border-red-50">
                 <th>Properti</th><th>Tipe</th><th>Harga</th><th>Status</th><th></th>
@@ -844,6 +845,7 @@ export default function Property() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

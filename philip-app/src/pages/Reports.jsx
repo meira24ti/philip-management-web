@@ -174,7 +174,7 @@ export default function Reports() {
 
       {/* ── Tren transaksi chart (Recharts) ── */}
       <div className="card bg-base-100 shadow border border-red-50">
-        <div className="card-body p-5">
+        <div className="card-body p-4 sm:p-5">
           <h3 className="font-bold text-red-900 mb-4">Tren Transaksi 6 Bulan Terakhir</h3>
           {formattedTren.length > 0 ? (
             <ResponsiveContainer width="100%" height={200}>
@@ -197,7 +197,7 @@ export default function Reports() {
 
         {/* ── Distribusi Tipe Properti (Pie Chart) ── */}
         <div className="card bg-base-100 shadow border border-red-50">
-          <div className="card-body p-5">
+          <div className="card-body p-4 sm:p-5">
             <h3 className="font-bold text-red-900 mb-3">Properti Terlaku per Tipe</h3>
             {byTipe.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
@@ -227,7 +227,7 @@ export default function Reports() {
 
         {/* ── Komisi per bulan (Area Chart) ── */}
         <div className="card bg-base-100 shadow border border-red-50">
-          <div className="card-body p-5">
+          <div className="card-body p-4 sm:p-5">
             <h3 className="font-bold text-red-900 mb-3">Komisi Perusahaan (Rp)</h3>
             {formattedTren.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
@@ -259,7 +259,7 @@ export default function Reports() {
       {/* ── Generate Laporan (Direktur only) ── */}
       {isDirektur && (
         <div className="card bg-base-100 shadow border border-red-50">
-          <div className="card-body p-5">
+          <div className="card-body p-4 sm:p-5">
             <h3 className="font-bold text-red-900 mb-1">Generate Laporan PDF</h3>
             <p className="text-xs text-gray-400 mb-4">Laporan dibuat otomatis dari data yang tersedia di sistem.</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -298,7 +298,7 @@ export default function Reports() {
               <button
                 onClick={handleGenerate}
                 disabled={generating}
-                className="btn btn-sm btn-error text-white rounded-xl gap-2 shadow"
+                className="btn btn-sm btn-error text-white rounded-xl gap-2 shadow w-full sm:w-auto"
               >
                 {generating ? (
                   <><span className="loading loading-spinner loading-xs" /> Membuat laporan...</>
@@ -314,8 +314,8 @@ export default function Reports() {
       {/* ── Riwayat Laporan (Direktur only) ── */}
       {isDirektur && (
         <div className="card bg-base-100 shadow border border-red-50">
-          <div className="card-body p-5">
-            <div className="flex justify-between items-center mb-3">
+          <div className="card-body p-4 sm:p-5">
+            <div className="flex items-center justify-between gap-3 mb-3">
               <h3 className="font-bold text-red-900">Riwayat Laporan</h3>
               <button
                 onClick={loadRiwayat}
@@ -332,7 +332,7 @@ export default function Reports() {
               <p className="text-center text-gray-400 py-8 text-sm">Belum ada laporan yang dibuat</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="table table-sm">
+                <table className="table table-sm min-w-[42rem]">
                   <thead>
                     <tr className="text-xs text-gray-500 border-b border-red-50">
                       <th>Judul Laporan</th>

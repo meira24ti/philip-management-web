@@ -225,7 +225,7 @@ export default function Sidebar() {
 
       {/* Desktop sidebar */}
       <aside
-        className="hidden md:flex flex-col w-56 lg:w-64 min-h-screen flex-shrink-0 rounded-2xl m-4 mr-0"
+        className="hidden md:flex md:sticky md:top-4 md:h-[calc(100dvh-2rem)] min-h-screen flex-col w-56 lg:w-64 flex-shrink-0 rounded-2xl border border-white/10 m-4 mr-0 shadow-xl shadow-red-950/20"
         style={sidebarBg}
       >
         {logoElement}

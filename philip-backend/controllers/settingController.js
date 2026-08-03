@@ -1,8 +1,19 @@
 // philip-backend/controllers/settingController.js
 const pool = require("../config/db");
 const multer = require("multer");
-const path = require("path");
 const fs = require("fs").promises;
+const crypto = require("crypto");
+const { imageFileFilter, safeImageExtension } = require("../utils/uploadValidation");
+
+const allowedSettingKeys = new Set([
+  "company_name",
+  "company_tagline",
+  "company_city",
+  "company_phone",
+  "hero_title",
+  "hero_subtitle",
+  "hero_desc",
+]);
 
 // Upload logo
 const logoStorage = multer.diskStorage({
@@ -15,15 +26,12 @@ const logoStorage = multer.diskStorage({
         }
     },
     filename: (req, file, cb) =>
-        cb(null, "logo" + path.extname(file.originalname))
+        cb(null, `logo-${Date.now()}-${crypto.randomUUID()}${safeImageExtension(file)}`)
 });
 exports.uploadLogo = multer({
     storage: logoStorage,
     limits: { fileSize: 2 * 1024 * 1024 },
-    fileFilter: (req, file, cb) => {
-        if (file.mimetype.startsWith("image/")) cb(null, true);
-        else cb(new Error("Hanya file gambar yang diizinkan"));
-    }
+    fileFilter: imageFileFilter,
 });
 
 // GET /api/setting — ambil semua setting
@@ -41,8 +49,12 @@ exports.getAll = async (req, res) => {
 // PUT /api/setting — update setting (admin only)
 exports.update = async (req, res) => {
     try {
-        const updates = req.body;
-        for (const [key, value] of Object.entries(updates)) {
+        const updates = Object.entries(req.body || {}).filter(([key]) => allowedSettingKeys.has(key));
+        if (updates.length === 0) {
+            return res.status(400).json({ message: "Tidak ada pengaturan yang valid untuk diperbarui" });
+        }
+
+        for (const [key, value] of updates) {
             // ✅ updated_by WAJIB diisi (NOT NULL di schema)
             await pool.query(
                 "UPDATE setting SET key_value = ?, updated_by = ?, updated_at = NOW() WHERE key_name = ?",

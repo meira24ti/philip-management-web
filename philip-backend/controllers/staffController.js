@@ -3,8 +3,12 @@ const pool = require("../config/db");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const multer = require("multer");
-const path = require("path");
 const fs = require("fs").promises;
+const { imageFileFilter, safeImageExtension } = require("../utils/uploadValidation");
+
+const roleRank = { marketing: 1, admin: 2, direktur: 3 };
+const canManageRole = (actorRole, targetRole) =>
+  (roleRank[actorRole] || 0) > (roleRank[targetRole] || 0);
 
 // ─── Upload foto profil staff ──────────────────────────────
 const fotoStorage = multer.diskStorage({
@@ -17,15 +21,12 @@ const fotoStorage = multer.diskStorage({
     }
   },
   filename: (req, file, cb) =>
-    cb(null, Date.now() + path.extname(file.originalname))
+    cb(null, `${Date.now()}-${crypto.randomUUID()}${safeImageExtension(file)}`)
 });
 exports.uploadFoto = multer({
   storage: fotoStorage,
   limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) cb(null, true);
-    else cb(new Error("Hanya file gambar yang diizinkan"));
-  }
+  fileFilter: imageFileFilter,
 });
 
 // ─── GET /api/staff ─────────────────────────────────────────
@@ -72,6 +73,9 @@ exports.create = async (req, res) => {
     const validRoles = ["admin", "marketing", "direktur"];
     if (!validRoles.includes(role)) {
       return res.status(400).json({ message: "Role tidak valid" });
+    }
+    if (!canManageRole(req.user.role, role)) {
+      return res.status(403).json({ message: "Tidak boleh membuat akun dengan role setara atau lebih tinggi" });
     }
 
     // 2. Cek duplikasi email
@@ -128,9 +132,12 @@ exports.update = async (req, res) => {
     }
 
     // 2. Cek apakah staff dengan ID ini ada
-    const [staff] = await pool.query("SELECT id_user FROM user WHERE id_user = ?", [id]);
+    const [staff] = await pool.query("SELECT id_user, role FROM user WHERE id_user = ?", [id]);
     if (!staff.length) {
       return res.status(404).json({ message: "Staff tidak ditemukan" });
+    }
+    if (!canManageRole(req.user.role, staff[0].role) || !canManageRole(req.user.role, role)) {
+      return res.status(403).json({ message: "Tidak boleh mengubah akun dengan role setara atau lebih tinggi" });
     }
 
     // 3. Cek duplikasi email (kecuali dirinya sendiri)
@@ -173,9 +180,12 @@ exports.deactivate = async (req, res) => {
     }
 
     // 2. Cek apakah staff ada dan ambil namanya
-    const [rows] = await pool.query("SELECT nama FROM user WHERE id_user = ?", [id]);
+    const [rows] = await pool.query("SELECT nama, role FROM user WHERE id_user = ?", [id]);
     if (!rows.length) {
       return res.status(404).json({ message: "Staff tidak ditemukan" });
+    }
+    if (!canManageRole(req.user.role, rows[0].role)) {
+      return res.status(403).json({ message: "Tidak boleh menonaktifkan akun dengan role setara atau lebih tinggi" });
     }
     const staffName = rows[0].nama;
 
@@ -199,6 +209,15 @@ exports.uploadStaffFoto = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "File tidak ditemukan" });
     const { id } = req.params;
+    const [staff] = await pool.query("SELECT role FROM user WHERE id_user = ?", [id]);
+    if (!staff.length) {
+      await fs.unlink(req.file.path).catch(() => {});
+      return res.status(404).json({ message: "Staff tidak ditemukan" });
+    }
+    if (!canManageRole(req.user.role, staff[0].role)) {
+      await fs.unlink(req.file.path).catch(() => {});
+      return res.status(403).json({ message: "Tidak boleh mengubah foto akun dengan role setara atau lebih tinggi" });
+    }
     const fotoUrl = "/uploads/profil/" + req.file.filename;
     await pool.query("UPDATE user SET foto_profil=? WHERE id_user=?", [fotoUrl, id]);
     res.json({ message:"Foto staff berhasil diupload", fotoUrl });

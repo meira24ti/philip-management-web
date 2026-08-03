@@ -225,7 +225,7 @@ export default function Settings() {
       </div>
 
       {/* ── Tabs ── */}
-      <div className="tabs tabs-boxed bg-red-50 p-1 rounded-xl w-fit gap-1">
+      <div className="tabs tabs-boxed bg-red-50 p-1 rounded-xl w-full sm:w-fit gap-1 overflow-x-auto">
         {tabs.map(t => (
           <button
             key={t.id}
@@ -243,7 +243,7 @@ export default function Settings() {
       {/* ── Perusahaan ── */}
       {activeTab === "perusahaan" && canEditCompany && (
         <div className="card bg-base-100 shadow border border-red-50">
-          <div className="card-body p-5 gap-4">
+          <div className="card-body p-4 sm:p-5 gap-4">
             <h3 className="font-bold text-red-900">Identitas Perusahaan</h3>
             <p className="text-xs text-gray-400 -mt-2">Data ini akan ditampilkan di sidebar, hero banner, dan flyer properti.</p>
 
@@ -325,7 +325,7 @@ export default function Settings() {
             </div>
 
             <div className="divider text-xs text-gray-400">Logo Perusahaan</div>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
               <div className="w-16 h-16 bg-gradient-to-br from-red-700 to-red-900 rounded-2xl flex items-center justify-center shadow overflow-hidden">
                 {company.company_logo ? (
                   <img
@@ -366,7 +366,7 @@ export default function Settings() {
               <button
                 onClick={handleSaveCompany}
                 disabled={loading.company}
-                className="btn btn-sm btn-error text-white rounded-xl shadow gap-2"
+                className="btn btn-sm btn-error text-white rounded-xl shadow gap-2 w-full sm:w-auto"
               >
                 {loading.company ? (
                   <><span className="loading loading-spinner loading-xs" /> Menyimpan...</>
@@ -386,10 +386,10 @@ export default function Settings() {
       {/* ── Profil Saya ── */}
       {activeTab === "profil" && (
         <div className="card bg-base-100 shadow border border-red-50">
-          <div className="card-body p-5 gap-4">
+          <div className="card-body p-4 sm:p-5 gap-4">
             <h3 className="font-bold text-red-900">Profil Akun Saya</h3>
 
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
               <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-700 to-red-900 flex items-center justify-center text-white text-xl font-bold shadow overflow-hidden">
                 {profile.foto_profil ? (
                   <img
@@ -463,7 +463,7 @@ export default function Settings() {
               <button
                 onClick={handleSaveProfile}
                 disabled={loading.profile}
-                className="btn btn-sm btn-error text-white rounded-xl shadow"
+                className="btn btn-sm btn-error text-white rounded-xl shadow w-full sm:w-auto"
               >
                 {loading.profile ? (
                   <><span className="loading loading-spinner loading-xs" /> Menyimpan...</>
@@ -481,7 +481,7 @@ export default function Settings() {
       {/* ── Keamanan ── */}
       {activeTab === "keamanan" && (
         <div className="card bg-base-100 shadow border border-red-50">
-          <div className="card-body p-5 gap-4 max-w-md">
+          <div className="card-body p-4 sm:p-5 gap-4 max-w-md">
             <h3 className="font-bold text-red-900">Ganti Password</h3>
             <label className="form-control">
               <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Password Lama</span></div>

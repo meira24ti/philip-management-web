@@ -1,3 +1,120 @@
 @import "tailwindcss";
 
 @plugin "daisyui/index.js";
+
+/* Shared responsive safeguards for the dashboard. */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    min-width: 320px;
+    overflow-x: hidden;
+    background:
+      radial-gradient(circle at 100% 0%, rgba(122, 0, 0, 0.08), transparent 32rem),
+      #f8fafc;
+    color: #374151;
+  }
+
+  ::selection {
+    background: #7a0000;
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 3px solid rgba(185, 28, 28, 0.28);
+    outline-offset: 2px;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    max-width: 100%;
+  }
+
+  label.form-control > :is(.input, .select, .textarea) {
+    width: 100%;
+  }
+}
+
+@layer components {
+  .card {
+    border-radius: 1rem;
+  }
+
+  .btn,
+  .input,
+  .select,
+  .textarea,
+  .file-input {
+    transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease, background-color 160ms ease;
+  }
+
+  .btn:not(:disabled):active {
+    transform: translateY(1px);
+  }
+
+  .input,
+  .select,
+  .textarea,
+  .file-input {
+    border-color: #fee2e2;
+    background-color: rgba(255, 255, 255, 0.96);
+  }
+
+  .input:focus,
+  .select:focus,
+  .textarea:focus,
+  .file-input:focus {
+    border-color: #b91c1c;
+    box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.12);
+  }
+
+  .table :where(th) {
+    color: #7f1d1d;
+    font-weight: 700;
+  }
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #d4a2a2 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #d4a2a2;
+  border-radius: 999px;
+}
+
+@media (max-width: 639px) {
+  .modal-box {
+    width: calc(100vw - 1.5rem);
+    max-height: calc(100dvh - 1.5rem);
+    padding: 1rem;
+    overflow-y: auto;
+  }
+
+  .modal-action {
+    flex-wrap: wrap;
+  }
+
+  .modal-action > .btn {
+    flex: 1 1 auto;
+  }
+
+  .toast {
+    left: 0.75rem;
+    right: 0.75rem;
+  }
+
+  .toast .alert {
+    width: 100%;
+  }
+}

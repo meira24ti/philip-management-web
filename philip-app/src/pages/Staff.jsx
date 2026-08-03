@@ -164,7 +164,7 @@ function RoleSection({ role, staff, canManage, onEdit, onDeactivate }) {
 
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-red-900">{roleLabel[role] || role}</h2>
           <p className="text-sm text-gray-500">
@@ -394,7 +394,7 @@ export default function Staff() {
         {canManage && (
           <button
             onClick={() => setShowModal(true)}
-            className="btn btn-sm btn-error rounded-xl text-white shadow"
+            className="btn btn-sm btn-error rounded-xl text-white shadow w-full sm:w-auto"
           >
             <HiOutlineUserAdd size={16} /> Tambah Staff
           </button>
@@ -422,7 +422,7 @@ export default function Staff() {
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex flex-wrap items-center gap-2">
-          <label className="input input-bordered input-sm flex min-w-52 flex-1 items-center gap-2 rounded-xl border-red-100">
+          <label className="input input-bordered input-sm flex min-w-0 w-full flex-1 items-center gap-2 rounded-xl border-red-100 sm:w-auto">
             <HiSearch className="text-gray-400" size={15} />
             <input
               type="text"
@@ -530,7 +530,6 @@ export default function Staff() {
         <div className="modal modal-open">
           <div className="modal-box max-w-md rounded-2xl">
             <h3 className="mb-4 text-lg font-bold text-red-900">Tambah Staff Baru</h3>
-``
             <form onSubmit={handleCreate}>
               <div className="space-y-3">
                 <label className="form-control w-full">

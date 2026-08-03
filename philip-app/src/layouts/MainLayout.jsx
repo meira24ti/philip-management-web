@@ -4,16 +4,16 @@ import Header from "../components/Header";
 
 export default function MainLayout() {
   return (
-    <div className="bg-gray-100 min-h-screen flex">
-      <div className="flex flex-row flex-1">
+    <div className="min-h-dvh overflow-x-clip bg-[radial-gradient(circle_at_top_right,_rgba(122,0,0,0.08),_transparent_28rem)]">
+      <div className="flex min-h-dvh min-w-0">
 
         <Sidebar />
 
-        <div className="flex-1 p-4">
+        <main className="min-w-0 flex-1 p-3 pt-16 sm:p-4 sm:pt-16 md:pt-4">
           <Header />
 
           <Outlet />
-        </div>
+        </main>
 
       </div>
     </div>

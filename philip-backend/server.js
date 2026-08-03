@@ -12,6 +12,8 @@ const staffRoutes = require("./routes/staffRoutes");
 const statistikRoutes = require("./routes/statistikRoutes");
 const laporanRoutes = require("./routes/laporanRoutes");
 const settingRoutes = require("./routes/settingRoutes");
+const auth = require("./middleware/auth");
+const rbac = require("./middleware/rbac");
 
 const app = express();
 
@@ -20,7 +22,28 @@ const allowedOrigins = process.env.CLIENT_URL
       .split(",")
       .map((url) => url.trim())
       .filter(Boolean)
-  : [];
+  : process.env.NODE_ENV === "production"
+    ? []
+    : ["http://localhost:5173", "http://localhost:4173"];
+
+if (process.env.NODE_ENV === "production" && allowedOrigins.length === 0) {
+  throw new Error("CLIENT_URL wajib diatur pada environment production");
+}
+
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+  throw new Error("JWT_SECRET wajib diatur dan minimal 32 karakter");
+}
+
+app.disable("x-powered-by");
+app.use((req, res, next) => {
+  res.set({
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+  });
+  next();
+});
 
 app.use(
   cors({
@@ -45,10 +68,16 @@ app.use(
   })
 );
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 // Static folder upload
+app.use(
+  "/uploads/laporan",
+  auth,
+  rbac("direktur"),
+  express.static(path.join(__dirname, "uploads", "laporan"))
+);
 app.use(
   "/uploads",
   express.static(path.join(__dirname, "uploads"), {
