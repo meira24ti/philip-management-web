@@ -21,6 +21,7 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState(canEditCompany ? "perusahaan" : "profil");
   const [showOldPw, setShowOldPw] = useState(false);
   const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState({
     company: false,
@@ -525,14 +526,19 @@ export default function Settings() {
             </label>
             <label className="form-control">
               <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Konfirmasi Password Baru</span></div>
-              <input
-                type="password"
-                name="confirmPassword"
-                placeholder="Ulangi password baru"
-                className="input input-bordered input-sm rounded-xl w-full"
-                value={passwordData.confirmPassword}
-                onChange={handlePasswordChange}
-              />
+              <div className="relative">
+                <input
+                  type={showConfirmPw ? "text" : "password"}
+                  name="confirmPassword"
+                  placeholder="Ulangi password baru"
+                  className="input input-bordered input-sm rounded-xl w-full pr-10"
+                  value={passwordData.confirmPassword}
+                  onChange={handlePasswordChange}
+                />
+                <button type="button" onClick={() => setShowConfirmPw(!showConfirmPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" aria-label="Tampilkan atau sembunyikan konfirmasi password">
+                  {showConfirmPw ? <HiOutlineEyeOff size={16} /> : <HiOutlineEye size={16} />}
+                </button>
+              </div>
             </label>
             <div className="mt-2">
               <button

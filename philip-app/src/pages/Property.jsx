@@ -468,6 +468,11 @@ export default function Property() {
   const [filterSampai, setFilterSampai] = useState("");
   const [filterHargaMin, setFilterHargaMin] = useState("");
   const [filterHargaMax, setFilterHargaMax] = useState("");
+  const [filterJenis, setFilterJenis] = useState("");
+  const [filterStatusUnit, setFilterStatusUnit] = useState("");
+  const [filterKota, setFilterKota] = useState("");
+  const [filterLtMin, setFilterLtMin] = useState("");
+  const [filterLtMax, setFilterLtMax] = useState("");
 
   // ─── State untuk dropdown vendor & marketing ────────────────
   const [vendors, setVendors] = useState([]);
@@ -492,7 +497,7 @@ export default function Property() {
   }, [loadVendorsAndMarketings]);
 
   // ─── Load data properti ──────────────────────────────────────
-  const loadData = useCallback(async (searchTerm = "", kat = "", dari = "", sampai = "", hMin = "", hMax = "") => {
+  const loadData = useCallback(async (searchTerm = "", kat = "", dari = "", sampai = "", hMin = "", hMax = "", jenis = "", statusUnit = "", kota = "", ltMin = "", ltMax = "") => {
     try {
       setLoading(true);
       const params = {};
@@ -502,6 +507,11 @@ export default function Property() {
       if (sampai) params.sampai = sampai;
       if (hMin) params.hargaMin = hMin;
       if (hMax) params.hargaMax = hMax;
+      if (jenis) params.jenis = jenis;
+      if (statusUnit) params.statusUnit = statusUnit;
+      if (kota) params.kota = kota;
+      if (ltMin) params.ltMin = ltMin;
+      if (ltMax) params.ltMax = ltMax;
       
       const data = await propertiService.getAll(params);
       setProperties(data);
@@ -513,8 +523,8 @@ export default function Property() {
   }, [showToast]);
 
   useEffect(() => {
-    loadData(search, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax);
-  }, [loadData, search, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax]);
+    loadData(search, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax, filterJenis, filterStatusUnit, filterKota, filterLtMin, filterLtMax);
+  }, [loadData, search, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax, filterJenis, filterStatusUnit, filterKota, filterLtMin, filterLtMax]);
 
   // ─── Bersihkan data form sebelum kirim ──────────────────────
   function cleanFormData(formData) {
@@ -568,7 +578,7 @@ export default function Property() {
 
       setShowForm(false);
       setEditItem(null);
-      await loadData(search, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax);
+      await loadData(search, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax, filterJenis, filterStatusUnit, filterKota, filterLtMin, filterLtMax);
     } catch (err) {
       showToast(err.response?.data?.message || "Gagal menyimpan properti", "error");
     } finally {
@@ -590,7 +600,7 @@ export default function Property() {
       showToast("Properti berhasil dihapus");
       setDeleteId(null);
       document.getElementById("delete-modal").close();
-      await loadData(search, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax);
+      await loadData(search, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax, filterJenis, filterStatusUnit, filterKota, filterLtMin, filterLtMax);
     } catch {
       showToast("Gagal menghapus properti", "error");
     }
@@ -681,6 +691,29 @@ export default function Property() {
           <option value="Kombinasi">Kombinasi</option>
         </select>
 
+        <select className="select select-bordered select-sm w-full rounded-xl border-red-100 sm:w-auto" value={filterJenis} onChange={e => setFilterJenis(e.target.value)}>
+          <option value="">Semua Penawaran</option>
+          <option value="dijual">Dijual</option>
+          <option value="disewa">Disewakan</option>
+          <option value="dijual_dan_disewa">Jual &amp; Sewa</option>
+        </select>
+
+        <select className="select select-bordered select-sm w-full rounded-xl border-red-100 sm:w-auto" value={filterStatusUnit} onChange={e => setFilterStatusUnit(e.target.value)}>
+          <option value="">Semua Status Unit</option>
+          <option value="tersedia">Tersedia</option>
+          <option value="negosiasi">Negosiasi</option>
+          <option value="terjual">Terjual</option>
+          <option value="tersewa">Tersewa</option>
+        </select>
+
+        <select className="select select-bordered select-sm w-full rounded-xl border-red-100 sm:w-auto" value={filterKota} onChange={e => setFilterKota(e.target.value)}>
+          <option value="">Semua Kota</option>
+          <option value="Pekanbaru">Pekanbaru</option>
+          <option value="Kampar">Kampar</option>
+          <option value="Siak">Siak</option>
+          <option value="Pelalawan">Pelalawan</option>
+        </select>
+
         {/* ─── Filter Tanggal Dari ─────────────────────────────── */}
         <input
           type="date"
@@ -720,6 +753,15 @@ export default function Property() {
           placeholder="Harga max"
           title="Harga maksimum (Rp)"
         />
+
+        <input type="number" className="input input-bordered input-sm w-full rounded-xl border-red-100 sm:w-32" value={filterLtMin} onChange={e => setFilterLtMin(e.target.value)} placeholder="LT min (m²)" title="Luas tanah minimum" />
+        <input type="number" className="input input-bordered input-sm w-full rounded-xl border-red-100 sm:w-32" value={filterLtMax} onChange={e => setFilterLtMax(e.target.value)} placeholder="LT max (m²)" title="Luas tanah maksimum" />
+
+        {(filterKategori || filterJenis || filterStatusUnit || filterKota || filterDari || filterSampai || filterHargaMin || filterHargaMax || filterLtMin || filterLtMax || search) && (
+          <button onClick={() => { setSearch(""); setFilterKategori(""); setFilterJenis(""); setFilterStatusUnit(""); setFilterKota(""); setFilterDari(""); setFilterSampai(""); setFilterHargaMin(""); setFilterHargaMax(""); setFilterLtMin(""); setFilterLtMax(""); }} className="btn btn-sm btn-ghost rounded-xl text-red-700">
+            Reset Filter
+          </button>
+        )}
 
         <div className="flex gap-1 sm:ml-auto">
           <button

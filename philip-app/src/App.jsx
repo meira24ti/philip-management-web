@@ -24,6 +24,7 @@ const NotFound = React.lazy(() => import("./pages/NotFound"));
 const Login = React.lazy(() => import("./pages/auth/Login"));
 const Register = React.lazy(() => import("./pages/auth/Register"));
 const Forgot = React.lazy(() => import("./pages/auth/Forgot"));
+const ResetPassword = React.lazy(() => import("./pages/auth/ResetPassword"));
 
 // ─── Guard: harus login ────────────────────────────────────────
 function RequireAuth({ children }) {
@@ -67,6 +68,11 @@ function App() {
           <Route path="/forgot" element={
             <RequireGuest>
               <Forgot />
+            </RequireGuest>
+          } />
+          <Route path="/reset-password" element={
+            <RequireGuest>
+              <ResetPassword />
             </RequireGuest>
           } />
           {/* Register: hanya Admin yang bisa akses */}

@@ -96,8 +96,6 @@ export default function Register() {
           <select className={inputCls} value={form.role}
             onChange={e=>setForm(f=>({...f,role:e.target.value}))}>
             <option value="marketing">Marketing</option>
-            <option value="admin">Admin</option>
-            <option value="direktur">Direktur</option>
           </select>
         </div>
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">

@@ -8,6 +8,8 @@ import {
   HiOutlinePhone,
   HiOutlineUserAdd,
   HiOutlineUsers,
+  HiOutlineEye,
+  HiOutlineEyeOff,
   HiSearch,
   HiX,
 } from "react-icons/hi";
@@ -26,6 +28,7 @@ const roleTitle = {
 };
 const roleBadge = { admin: "badge-error", marketing: "badge-info", direktur: "badge-warning" };
 const roleOrder = ["direktur", "admin", "marketing"];
+const roleRank = { marketing: 1, admin: 2, direktur: 3 };
 
 const normalizePhone = (phone) => (phone || "").replace(/\D/g, "");
 const whatsappNumber = (phone) => {
@@ -63,9 +66,10 @@ function Avatar({ staff }) {
 }
 
 // ─── STAFF CARD ─────────────────────────────────────────────
-function StaffCard({ staff, canManage, onEdit, onDeactivate, compact = false }) {
+function StaffCard({ staff, canManage, actorRole, onEdit, onDeactivate, compact = false }) {
   const phone = normalizePhone(staff.no_hp);
   const wa = whatsappNumber(staff.no_hp);
+  const canManageStaff = canManage && (roleRank[actorRole] || 0) > (roleRank[staff.role] || 0);
 
   return (
     <div
@@ -133,7 +137,7 @@ function StaffCard({ staff, canManage, onEdit, onDeactivate, compact = false }) 
             </a>
           </div>
 
-          {canManage && staff.is_active && (
+          {canManageStaff && staff.is_active && (
             <div className="flex gap-1">
               <button
                 onClick={() => onEdit(staff)}
@@ -157,7 +161,7 @@ function StaffCard({ staff, canManage, onEdit, onDeactivate, compact = false }) 
 }
 
 // ─── ROLE SECTION ──────────────────────────────────────────
-function RoleSection({ role, staff, canManage, onEdit, onDeactivate }) {
+function RoleSection({ role, staff, canManage, actorRole, onEdit, onDeactivate }) {
   const isMarketing = role === "marketing";
 
   if (staff.length === 0) return null;
@@ -184,6 +188,7 @@ function RoleSection({ role, staff, canManage, onEdit, onDeactivate }) {
               key={member.id_user}
               staff={member}
               canManage={canManage}
+              actorRole={actorRole}
               onEdit={onEdit}
               onDeactivate={onDeactivate}
               compact
@@ -197,6 +202,7 @@ function RoleSection({ role, staff, canManage, onEdit, onDeactivate }) {
               key={member.id_user}
               staff={member}
               canManage={canManage}
+              actorRole={actorRole}
               onEdit={onEdit}
               onDeactivate={onDeactivate}
             />
@@ -224,6 +230,7 @@ export default function Staff() {
   const [confirmId, setConfirmId] = useState(null);
   const [roleOpen, setRoleOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
 
   // ─── Edit form + foto ──────────────────────────────────
   const [formData, setFormData] = useState({
@@ -237,6 +244,7 @@ export default function Staff() {
   const [editFotoPreview, setEditFotoPreview] = useState(null);
 
   const canManage = ["admin", "direktur"].includes(role);
+  const manageableRoles = role === "direktur" ? ["admin", "marketing"] : role === "admin" ? ["marketing"] : [];
 
   // ─── Fetch data ──────────────────────────────────────────
   const fetchStaff = useCallback(async () => {
@@ -512,12 +520,13 @@ export default function Staff() {
         </div>
       ) : (
         <div className="space-y-8">
-          {roleOrder.map((role) => (
+          {roleOrder.map((sectionRole) => (
             <RoleSection
-              key={role}
-              role={role}
-              staff={groupedStaff[role] || []}
+              key={sectionRole}
+              role={sectionRole}
+              staff={groupedStaff[sectionRole] || []}
               canManage={canManage}
+              actorRole={role}
               onEdit={handleOpenEdit}
               onDeactivate={handleConfirmDeactivate}
             />
@@ -589,9 +598,7 @@ export default function Staff() {
                     required
                   >
                     <option value="">Pilih role</option>
-                    <option value="admin">Admin</option>
-                    <option value="marketing">Marketing</option>
-                    <option value="direktur">Direktur</option>
+                    {manageableRoles.map((managedRole) => <option key={managedRole} value={managedRole}>{roleLabel[managedRole]}</option>)}
                   </select>
                 </label>
 
@@ -599,14 +606,19 @@ export default function Staff() {
                   <div className="label">
                     <span className="label-text text-xs font-semibold text-gray-600">Password</span>
                   </div>
-                  <input
-                    type="password"
-                    name="password"
-                    placeholder="Password staff (opsional)"
-                    className="input input-bordered input-sm w-full rounded-xl"
-                    value={formData.password}
-                    onChange={handleFormChange}
-                  />
+                  <div className="relative">
+                    <input
+                      type={showCreatePassword ? "text" : "password"}
+                      name="password"
+                      placeholder="Password staff (opsional)"
+                      className="input input-bordered input-sm w-full rounded-xl pr-10"
+                      value={formData.password}
+                      onChange={handleFormChange}
+                    />
+                    <button type="button" onClick={() => setShowCreatePassword((value) => !value)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-800" aria-label="Tampilkan atau sembunyikan password">
+                      {showCreatePassword ? <HiOutlineEyeOff size={17} /> : <HiOutlineEye size={17} />}
+                    </button>
+                  </div>
                   <p className="text-xs text-gray-500 mt-1">Kosongkan untuk generate password otomatis.</p>
                 </label>
               </div>
@@ -721,9 +733,7 @@ export default function Staff() {
                     required
                   >
                     <option value="">Pilih role</option>
-                    <option value="admin">Admin</option>
-                    <option value="marketing">Marketing</option>
-                    <option value="direktur">Direktur</option>
+                    {manageableRoles.map((managedRole) => <option key={managedRole} value={managedRole}>{roleLabel[managedRole]}</option>)}
                   </select>
                 </label>
               </div>

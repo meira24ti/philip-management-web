@@ -76,9 +76,9 @@ exports.getAll = async (req, res) => {
     const params = [];
 
     if (search) {
-      sql += " AND (p.nama_jalan LIKE ? OR p.kota LIKE ? OR tp.kategori LIKE ?)";
+      sql += " AND (p.no_folder LIKE ? OR p.nama_jalan LIKE ? OR p.area_kecamatan LIKE ? OR p.kota LIKE ? OR tp.kategori LIKE ? OR v.nama_vendor LIKE ?)";
       const s = `%${search}%`;
-      params.push(s, s, s);
+      params.push(s, s, s, s, s, s);
     }
     if (kategori)    { sql += " AND tp.kategori = ?";       params.push(normalizeKategori(kategori)); }
     if (jenis)       { sql += " AND p.jenis_penawaran = ?"; params.push(jenis); }

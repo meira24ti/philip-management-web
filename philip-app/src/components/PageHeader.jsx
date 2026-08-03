@@ -1,40 +1,78 @@
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BiChevronDown, BiBell } from "react-icons/bi";
-import { HiOutlineHome } from "react-icons/hi";
+import { BiBell, BiChevronDown, BiRefresh } from "react-icons/bi";
+import { HiOutlineCheck, HiOutlineHome } from "react-icons/hi";
 import { useAuth } from "../context/useAuth";
 import api from "../services/api";
 import { getImageUrl } from "../utils/imageUrl";
 
+const readStorageKey = (userId) => `philip-notifications-read:${userId || "guest"}`;
 const APP_STARTED = Date.now();
- 
+
+const readNotificationIds = (userId) => {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(readStorageKey(userId)) || "[]"));
+  } catch {
+    return new Set();
+  }
+};
+
 export default function PageHeader() {
   const { user, role, logout } = useAuth();
   const navigate = useNavigate();
-  const [notifOpen,   setNotifOpen]   = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [notifs,      setNotifs]      = useState([]);
-  const notifRef   = useRef(null);
+  const [notifs, setNotifs] = useState([]);
+  const [loadingNotifs, setLoadingNotifs] = useState(false);
+  const [readIds, setReadIds] = useState(() => readNotificationIds(user?.id));
+  const [avatarError, setAvatarError] = useState(null);
+  const notifRef = useRef(null);
   const profileRef = useRef(null);
- 
-  // Ambil notifikasi dari log_aktivitas terbaru
-  useEffect(() => {
-    api.get("/auth/notifikasi")
-      .then(r => setNotifs(r.data))
-      .catch(() => setNotifs([]));
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      setLoadingNotifs(true);
+      const { data } = await api.get("/auth/notifikasi");
+      setNotifs(Array.isArray(data) ? data : []);
+    } catch {
+      setNotifs([]);
+    } finally {
+      setLoadingNotifs(false);
+    }
   }, []);
- 
-  // Tutup dropdown saat klik luar
+
   useEffect(() => {
-    const handler = (e) => {
-      if (notifRef.current   && !notifRef.current.contains(e.target))   setNotifOpen(false);
-      if (profileRef.current && !profileRef.current.contains(e.target)) setProfileOpen(false);
+    const timer = window.setTimeout(loadNotifications, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setReadIds(readNotificationIds(user?.id)), 0);
+    return () => window.clearTimeout(timer);
+  }, [user?.id]);
+
+  useEffect(() => {
+    const handler = (event) => {
+      if (notifRef.current && !notifRef.current.contains(event.target)) setNotifOpen(false);
+      if (profileRef.current && !profileRef.current.contains(event.target)) setProfileOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
- 
-  const [avatarError, setAvatarError] = useState(null);
+
+  const markAllRead = () => {
+    const next = new Set(notifs.map((notification) => notification.id_log));
+    localStorage.setItem(readStorageKey(user?.id), JSON.stringify([...next]));
+    setReadIds(next);
+  };
+
+  const relativeTime = (date) => {
+    const seconds = Math.max(0, Math.floor((APP_STARTED - new Date(date).getTime()) / 1000));
+    if (seconds < 60) return "Baru saja";
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} menit lalu`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} jam lalu`;
+    return `${Math.floor(seconds / 86400)} hari lalu`;
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -42,113 +80,61 @@ export default function PageHeader() {
   };
 
   const avatarKey = user?.foto_profil || "no-avatar";
+  const initials = user?.nama ? user.nama.split(" ").map((name) => name[0]).join("").slice(0, 2).toUpperCase() : "?";
+  const unreadCount = notifs.filter((notification) => !readIds.has(notification.id_log)).length;
 
-  // Inisial avatar dari nama user
-  const initials = user?.nama
-    ? user.nama.split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase()
-    : "?";
-
-  // Format waktu relatif
-  const relativeTime = (dateStr) => {
-    const diff = Math.floor((APP_STARTED - new Date(dateStr)) / 1000);
-    if (diff < 60)   return `${diff} detik lalu`;
-    if (diff < 3600) return `${Math.floor(diff/60)} menit lalu`;
-    if (diff < 86400)return `${Math.floor(diff/3600)} jam lalu`;
-    return `${Math.floor(diff/86400)} hari lalu`;
-  };
- 
   return (
-    <header className="h-14 rounded-2xl border border-red-100/70 bg-white/95 pl-14 pr-3 shadow-sm backdrop-blur sm:px-4 md:px-6 mb-4 flex items-center justify-between">
- 
-      {/* Left */}
+    <header className="mb-4 flex h-14 items-center justify-between rounded-2xl border border-red-100/70 bg-white/95 pl-14 pr-3 shadow-sm backdrop-blur sm:px-4 md:px-6">
       <div className="flex items-center gap-2">
         <HiOutlineHome className="text-red-800" />
         <p className="font-semibold text-red-900">Utama</p>
       </div>
- 
-      {/* Right */}
+
       <div className="flex items-center gap-3">
- 
-        {/* Notifikasi */}
         <div className="relative" ref={notifRef}>
-          <button
-            onClick={() => { setNotifOpen(!notifOpen); setProfileOpen(false); }}
-            className="relative p-2 rounded-xl hover:bg-red-50 transition-colors text-red-800"
-          >
+          <button onClick={() => { setNotifOpen((open) => !open); setProfileOpen(false); }} className="relative rounded-xl p-2 text-red-800 transition-colors hover:bg-red-50" aria-label="Buka notifikasi">
             <BiBell size={20} />
-            {notifs.length > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
-            )}
+            {unreadCount > 0 && <span className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold text-white">{unreadCount > 9 ? "9+" : unreadCount}</span>}
           </button>
- 
+
           {notifOpen && (
-            <div className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-2rem))] bg-white rounded-2xl shadow-xl border border-red-100 z-50">
-              <div className="p-4 border-b border-red-50">
-                <p className="font-bold text-red-900 text-sm">Notifikasi</p>
+            <div className="absolute right-0 z-50 mt-2 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-red-100 bg-white shadow-xl">
+              <div className="flex items-center justify-between border-b border-red-50 p-3">
+                <div><p className="text-sm font-bold text-red-900">Notifikasi</p><p className="text-xs text-gray-400">{unreadCount ? `${unreadCount} belum dibaca` : "Semua sudah dibaca"}</p></div>
+                <div className="flex items-center gap-1">
+                  <button onClick={loadNotifications} className="btn btn-ghost btn-xs btn-square text-red-700" title="Muat ulang" aria-label="Muat ulang notifikasi"><BiRefresh size={16} className={loadingNotifs ? "animate-spin" : ""} /></button>
+                  {notifs.length > 0 && <button onClick={markAllRead} className="btn btn-ghost btn-xs gap-1 text-red-700"><HiOutlineCheck size={14} /> Baca semua</button>}
+                </div>
               </div>
-              <div className="max-h-72 overflow-y-auto">
-                {notifs.length === 0 ? (
-                  <p className="text-center text-gray-400 text-sm py-6">Tidak ada notifikasi</p>
-                ) : notifs.map((n, i) => (
-                  <div key={i} className="flex items-start gap-3 px-4 py-3 border-b border-red-50 last:border-0 hover:bg-red-50/50">
-                    <span className="w-2 h-2 bg-red-400 rounded-full mt-1.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">{n.aksi_label}</p>
-                      <p className="text-xs text-gray-400">{n.detail}</p>
-                      <p className="text-xs text-gray-300 mt-0.5">{relativeTime(n.created_at)}</p>
-                    </div>
-                  </div>
-                ))}
+              <div className="max-h-80 overflow-y-auto">
+                {loadingNotifs && notifs.length === 0 ? <div className="flex justify-center py-8"><span className="loading loading-spinner loading-sm text-red-800" /></div>
+                  : notifs.length === 0 ? <p className="py-8 text-center text-sm text-gray-400">Belum ada notifikasi</p>
+                  : notifs.map((notification) => {
+                    const unread = !readIds.has(notification.id_log);
+                    return <div key={notification.id_log} className={`flex gap-3 border-b border-red-50 px-4 py-3 last:border-0 ${unread ? "bg-red-50/60" : ""}`}>
+                      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${unread ? "bg-red-500" : "bg-gray-200"}`} />
+                      <div className="min-w-0"><p className="text-sm font-medium text-gray-800">{notification.aksi_label}</p><p className="break-words text-xs text-gray-500">{notification.detail}</p><p className="mt-1 text-xs text-gray-300">{relativeTime(notification.created_at)}</p></div>
+                    </div>;
+                  })}
               </div>
             </div>
           )}
         </div>
- 
-        {/* Profile */}
+
         <div className="relative" ref={profileRef}>
-          <button
-            onClick={() => { setProfileOpen(!profileOpen); setNotifOpen(false); }}
-            className="flex items-center gap-2 p-1.5 pr-3 rounded-xl hover:bg-red-50 transition-colors"
-          >
-            <div className="w-8 h-8 bg-red-800 rounded-lg flex items-center justify-center text-white overflow-hidden">
-              {user?.foto_profil && avatarError !== avatarKey ? (
-                <img
-                  key={avatarKey}
-                  src={getImageUrl(user.foto_profil)}
-                  className="w-full h-full object-contain bg-white"
-                  onError={() => setAvatarError(avatarKey)}
-                  alt={user?.nama || "Avatar"}
-                />
-              ) : (
-                <span className="text-xs font-bold">{initials}</span>
-              )}
+          <button onClick={() => { setProfileOpen((open) => !open); setNotifOpen(false); }} className="flex items-center gap-2 rounded-xl p-1.5 pr-3 transition-colors hover:bg-red-50">
+            <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg bg-red-800 text-white">
+              {user?.foto_profil && avatarError !== avatarKey ? <img key={avatarKey} src={getImageUrl(user.foto_profil)} className="h-full w-full bg-white object-contain" onError={() => setAvatarError(avatarKey)} alt={user?.nama || "Avatar"} /> : <span className="text-xs font-bold">{initials}</span>}
             </div>
-            <span className="hidden md:block text-sm font-semibold text-red-900">
-              {user?.nama || "Pengguna"}
-            </span>
-            <BiChevronDown className={`text-red-700 transition-transform ${profileOpen?"rotate-180":""}`} />
+            <span className="hidden text-sm font-semibold text-red-900 md:block">{user?.nama || "Pengguna"}</span>
+            <BiChevronDown className={`text-red-700 transition-transform ${profileOpen ? "rotate-180" : ""}`} />
           </button>
- 
-          {profileOpen && (
-            <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-red-100 overflow-hidden z-50">
-              <div className="px-4 py-3 border-b border-red-50">
-                <p className="font-bold text-red-900 text-sm">{user?.nama}</p>
-                <p className="text-xs text-gray-400 capitalize">{role}</p>
-              </div>
-              <Link to="/settings" onClick={() => setProfileOpen(false)}
-                className="block w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-red-50 text-gray-700">
-                Profil Saya
-              </Link>
-              <Link to="/settings" onClick={() => setProfileOpen(false)}
-                className="block w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-red-50 text-gray-700">
-                Pengaturan
-              </Link>
-              <button onClick={handleLogout}
-                className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-red-50 text-red-700">
-                Keluar
-              </button>
-            </div>
-          )}
+          {profileOpen && <div className="absolute right-0 z-50 mt-2 w-52 overflow-hidden rounded-2xl border border-red-100 bg-white shadow-xl">
+            <div className="border-b border-red-50 px-4 py-3"><p className="text-sm font-bold text-red-900">{user?.nama}</p><p className="text-xs capitalize text-gray-400">{role}</p></div>
+            <Link to="/settings" onClick={() => setProfileOpen(false)} className="block px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-red-50">Profil Saya</Link>
+            <Link to="/settings" onClick={() => setProfileOpen(false)} className="block px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-red-50">Pengaturan</Link>
+            <button onClick={handleLogout} className="w-full px-4 py-2.5 text-left text-sm font-medium text-red-700 hover:bg-red-50">Keluar</button>
+          </div>}
         </div>
       </div>
     </header>

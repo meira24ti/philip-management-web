@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { useAuth } from "../../context/useAuth";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { BsFillExclamationDiamondFill } from "react-icons/bs";
 import { ImSpinner2 } from "react-icons/im";
 import { AiOutlineEye, AiOutlineEyeInvisible } from "react-icons/ai";
@@ -11,6 +11,7 @@ import { AiOutlineEye, AiOutlineEyeInvisible } from "react-icons/ai";
 export default function Login() {
     const { login } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [showPassword, setShowPassword] = useState(false);
@@ -64,6 +65,11 @@ export default function Login() {
             </h2>
 
             {errorInfo}
+            {location.state?.message && (
+                <div className="bg-green-50 mb-5 p-3 text-sm font-medium text-green-700 rounded-lg flex items-center border border-green-200">
+                    {location.state.message}
+                </div>
+            )}
             {loadingInfo}
 
             <form onSubmit={handleSubmit}>

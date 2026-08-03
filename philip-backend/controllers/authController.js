@@ -2,10 +2,29 @@
 const pool = require("../config/db");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
 const multer = require("multer");
 const fs = require("fs").promises;
 const crypto = require("crypto");
 const { imageFileFilter, safeImageExtension } = require("../utils/uploadValidation");
+
+const resetTokenVersion = (passwordHash) =>
+  crypto.createHash("sha256").update(passwordHash).digest("hex").slice(0, 16);
+
+const getResetMailer = () => {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    return null;
+  }
+
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === "true",
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  });
+};
+
+const getClientUrl = () => String(process.env.CLIENT_URL || "").split(",")[0].trim().replace(/\/$/, "");
 
 // ─── LOGIN ────────────────────────────────────────────────────
 exports.login = async (req, res) => {
@@ -42,6 +61,96 @@ exports.login = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
+  }
+};
+
+// POST /api/auth/forgot-password
+// Always returns the same response to prevent email-account enumeration.
+exports.forgotPassword = async (req, res) => {
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  const genericResponse = {
+    message: "Jika email terdaftar, tautan reset password akan segera dikirim.",
+  };
+
+  if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+    return res.status(400).json({ message: "Masukkan alamat email yang valid" });
+  }
+
+  try {
+    const transporter = getResetMailer();
+    const clientUrl = getClientUrl();
+    if (!transporter || !clientUrl) {
+      console.error("Password reset is not configured: SMTP and CLIENT_URL are required");
+      return res.status(503).json({ message: "Layanan reset password belum dikonfigurasi" });
+    }
+
+    const [rows] = await pool.query(
+      "SELECT id_user, nama, email, password_hash FROM user WHERE email = ? AND is_active = 1",
+      [email]
+    );
+    if (!rows.length) return res.json(genericResponse);
+
+    const user = rows[0];
+    const token = jwt.sign(
+      { sub: user.id_user, purpose: "password_reset", version: resetTokenVersion(user.password_hash) },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+    const resetUrl = `${clientUrl}/reset-password?token=${encodeURIComponent(token)}`;
+
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: user.email,
+      subject: "Reset Password — Philip Real Estate",
+      text: `Halo ${user.nama},\n\nGunakan tautan berikut untuk membuat password baru. Tautan berlaku 15 menit:\n${resetUrl}\n\nJika Anda tidak meminta reset password, abaikan email ini.`,
+      html: `<p>Halo ${user.nama},</p><p>Gunakan tautan berikut untuk membuat password baru. Tautan berlaku selama <strong>15 menit</strong>.</p><p><a href="${resetUrl}">Reset password saya</a></p><p>Jika Anda tidak meminta reset password, abaikan email ini.</p>`,
+    });
+
+    await pool.query(
+      "INSERT INTO log_aktivitas (id_log, id_user, aksi, detail) VALUES (?, ?, 'minta_reset_password', 'Permintaan reset password')",
+      [crypto.randomUUID(), user.id_user]
+    );
+    return res.json(genericResponse);
+  } catch (err) {
+    console.error("Forgot password error:", err);
+    return res.status(500).json({ message: "Gagal memproses permintaan reset password" });
+  }
+};
+
+// POST /api/auth/reset-password
+exports.resetPassword = async (req, res) => {
+  const { token, newPassword } = req.body || {};
+  if (!token || typeof newPassword !== "string" || newPassword.length < 8) {
+    return res.status(400).json({ message: "Password baru minimal 8 karakter" });
+  }
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    if (payload.purpose !== "password_reset" || !payload.sub || !payload.version) {
+      return res.status(400).json({ message: "Tautan reset tidak valid" });
+    }
+
+    const [rows] = await pool.query(
+      "SELECT id_user, password_hash FROM user WHERE id_user = ? AND is_active = 1",
+      [payload.sub]
+    );
+    if (!rows.length || resetTokenVersion(rows[0].password_hash) !== payload.version) {
+      return res.status(400).json({ message: "Tautan reset sudah tidak berlaku" });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await pool.query(
+      "UPDATE user SET password_hash = ?, updated_at = NOW() WHERE id_user = ?",
+      [passwordHash, payload.sub]
+    );
+    await pool.query(
+      "INSERT INTO log_aktivitas (id_log, id_user, aksi, detail) VALUES (?, ?, 'reset_password', 'Password direset melalui email')",
+      [crypto.randomUUID(), payload.sub]
+    );
+
+    return res.json({ message: "Password berhasil direset. Silakan masuk dengan password baru." });
+  } catch {
+    return res.status(400).json({ message: "Tautan reset tidak valid atau sudah kedaluwarsa" });
   }
 };
 
@@ -204,7 +313,7 @@ exports.changePassword = async (req, res) => {
 exports.getNotifikasi = async (req, res) => {
   try {
     const [rows] = await pool.query(`
-      SELECT la.aksi, la.detail, la.created_at,
+      SELECT la.id_log, la.aksi, la.detail, la.created_at,
         CASE la.aksi
           WHEN 'tambah'            THEN 'Properti baru ditambahkan'
           WHEN 'edit'              THEN 'Properti diperbarui'
@@ -216,9 +325,9 @@ exports.getNotifikasi = async (req, res) => {
           ELSE la.aksi
         END AS aksi_label
       FROM log_aktivitas la
-      WHERE la.aksi NOT IN ('login','logout','update_profil','upload_foto','ganti_password')
+      WHERE la.aksi NOT IN ('login','logout','update_profil','upload_foto','ganti_password','minta_reset_password','reset_password')
       ORDER BY la.created_at DESC
-      LIMIT 10`);
+      LIMIT 20`);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ message: "Server error" });

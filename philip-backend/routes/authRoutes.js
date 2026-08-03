@@ -7,6 +7,12 @@ const loginRateLimit = require("../middleware/rateLimit");
 router.post("/login", loginRateLimit({
   key: (req) => `${req.ip}:${String(req.body?.email || "").trim().toLowerCase()}`,
 }), ctrl.login);
+router.post("/forgot-password", loginRateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  key: (req) => `${req.ip}:${String(req.body?.email || "").trim().toLowerCase()}`,
+}), ctrl.forgotPassword);
+router.post("/reset-password", loginRateLimit({ windowMs: 15 * 60 * 1000, max: 10 }), ctrl.resetPassword);
 router.post("/logout", auth, ctrl.logout);
 router.get("/me", auth, ctrl.me);
 router.put("/profile", auth, ctrl.updateProfile);
