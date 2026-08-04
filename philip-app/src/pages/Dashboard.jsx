@@ -3,6 +3,19 @@ import { Link } from "react-router-dom";
 import { HiChevronDown, HiHome, HiOutlineLocationMarker, HiSearch, HiTag, HiX } from "react-icons/hi";
 import { BiFilterAlt } from "react-icons/bi";
 import { propertiService } from "../services/propertiService";
+
+const isRumahCluster = (kategori, subkategori = "") =>
+  String(kategori || "").toLowerCase() === "rumah_cluster" ||
+  (String(kategori || "").toLowerCase() === "rumah" && /^cluster(?:\s*[-|:]\s*)?/i.test(String(subkategori || "")));
+
+const kategoriLabel = (kategori, subkategori = "") => {
+  if (isRumahCluster(kategori, subkategori)) return "Rumah Cluster";
+  return ({
+  rumah: "Rumah",
+  rumah_cluster: "Rumah Cluster",
+  "rumah cluster": "Rumah Cluster",
+  }[String(kategori || "").toLowerCase()] || kategori || "Properti");
+};
 import { getImageUrl } from "../utils/imageUrl";
 
 const badgeStyle = {
@@ -29,7 +42,7 @@ function PropertyCard({ property }) {
         {property.no_folder && <span className="absolute right-2 top-2 rounded bg-black/30 px-1.5 py-0.5 font-mono text-[10px] text-white/80">{property.no_folder}</span>}
       </div>
       <div className="p-3">
-        <p className="mb-1 truncate text-[10px] font-bold uppercase tracking-wide text-red-800 sm:text-xs">{property.kategori || "Properti"}</p>
+        <p className="mb-1 truncate text-[10px] font-bold uppercase tracking-wide text-red-800 sm:text-xs">{kategoriLabel(property.kategori, property.subkategori)}</p>
         <div className="mb-1.5 flex items-start gap-1 text-red-400"><HiOutlineLocationMarker className="mt-0.5 shrink-0" size={14} /><span className="truncate text-xs font-medium leading-tight text-gray-600">{address || "-"}</span></div>
         <div className="flex items-center gap-1 text-red-500"><HiTag className="shrink-0" size={14} /><p className="truncate text-xs font-bold leading-tight text-red-900">{formatRupiah(property.harga_jual || property.harga_sewa)}</p></div>
         {property.harga_sewa && property.harga_jual && <p className="mt-0.5 text-[10px] font-semibold text-blue-600">Sewa: {formatRupiah(property.harga_sewa)}/tahun</p>}
@@ -67,7 +80,11 @@ export default function Dashboard() {
     const searchable = [property.no_folder, property.nama_jalan, property.area_kecamatan, property.kota, property.kategori].join(" ").toLowerCase();
     return (!query || searchable.includes(query)) &&
       (!statusFilter || property.jenis_penawaran === statusFilter) &&
-      (!typeFilter || String(property.kategori || "").toLowerCase() === typeFilter) &&
+      (!typeFilter || (
+        typeFilter === "rumah_cluster"
+          ? isRumahCluster(property.kategori, property.subkategori)
+          : String(property.kategori || "").toLowerCase() === typeFilter
+      )) &&
       (!locationFilter || property.kota === locationFilter);
   });
 
@@ -84,7 +101,7 @@ export default function Dashboard() {
 
       <section className="rounded-2xl border border-red-100 bg-white p-3 shadow-sm md:p-4">
         <div className="flex items-center gap-2"><div className="relative min-w-0 flex-1"><HiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} /><input type="search" placeholder="Cari folder, alamat, kota..." value={search} onChange={(event) => setSearch(event.target.value)} className="w-full rounded-xl border border-red-100 py-2.5 pl-11 pr-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-200" /></div><button type="button" onClick={() => setFilterOpen((open) => !open)} aria-expanded={filterOpen} className={"inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-semibold transition-colors " + (filterOpen || activeFilterCount ? "border-red-200 bg-red-50 text-red-800" : "border-red-100 bg-white text-red-700 hover:bg-red-50")}><BiFilterAlt size={18} /><span className="hidden sm:inline">Filter</span>{activeFilterCount > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-red-800 px-1 text-[11px] text-white">{activeFilterCount}</span>}<HiChevronDown className={"hidden transition-transform sm:block " + (filterOpen ? "rotate-180" : "")} size={15} /></button></div>
-        {filterOpen && <div className="mt-3 border-t border-red-100 pt-3"><div className="grid gap-2 sm:grid-cols-3"><FilterSelect label="Penawaran" value={statusFilter} onChange={(event) => setStatus(event.target.value)} options={[{ value: "", label: "Semua penawaran" }, { value: "dijual", label: "Dijual" }, { value: "disewa", label: "Disewakan" }, { value: "dijual_dan_disewa", label: "Jual & sewa" }]} /><FilterSelect label="Tipe properti" value={typeFilter} onChange={(event) => setType(event.target.value)} options={[{ value: "", label: "Semua tipe" }, { value: "rumah", label: "Rumah" }, { value: "ruko", label: "Ruko" }, { value: "tanah", label: "Tanah" }, { value: "gudang", label: "Gudang" }, { value: "villa", label: "Villa" }]} /><FilterSelect label="Lokasi" value={locationFilter} onChange={(event) => setLocation(event.target.value)} options={[{ value: "", label: "Semua lokasi" }, { value: "Pekanbaru", label: "Pekanbaru" }, { value: "Kampar", label: "Kampar" }, { value: "Siak", label: "Siak" }, { value: "Pelalawan", label: "Pelalawan" }]} /></div>{(activeFilterCount > 0 || search) && <button type="button" onClick={resetFilters} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-red-700 hover:text-red-900"><HiX size={15} /> Reset pencarian & filter</button>}</div>}
+        {filterOpen && <div className="mt-3 rounded-xl border border-red-100 bg-red-50/40 p-3"><div className="grid gap-3 sm:grid-cols-3"><FilterSelect label="Penawaran" value={statusFilter} onChange={(event) => setStatus(event.target.value)} options={[{ value: "", label: "Semua penawaran" }, { value: "dijual", label: "Dijual" }, { value: "disewa", label: "Disewakan" }, { value: "dijual_dan_disewa", label: "Jual & sewa" }]} /><FilterSelect label="Tipe properti" value={typeFilter} onChange={(event) => setType(event.target.value)} options={[{ value: "", label: "Semua tipe" }, { value: "rumah", label: "Rumah" }, { value: "rumah_cluster", label: "Rumah Cluster" }, { value: "ruko", label: "Ruko" }, { value: "tanah", label: "Tanah" }, { value: "gudang", label: "Gudang" }, { value: "villa", label: "Villa" }]} /><FilterSelect label="Lokasi" value={locationFilter} onChange={(event) => setLocation(event.target.value)} options={[{ value: "", label: "Semua lokasi" }, { value: "Pekanbaru", label: "Pekanbaru" }, { value: "Kampar", label: "Kampar" }, { value: "Siak", label: "Siak" }, { value: "Pelalawan", label: "Pelalawan" }]} /></div>{(activeFilterCount > 0 || search) && <button type="button" onClick={resetFilters} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-red-700 hover:text-red-900"><HiX size={15} /> Reset pencarian & filter</button>}</div>}
       </section>
 
       <section><div className="mb-3 flex items-center justify-between"><h2 className="text-lg font-bold text-red-900">Properti Rekomendasi</h2><span className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-400">{filtered.length} properti</span></div>

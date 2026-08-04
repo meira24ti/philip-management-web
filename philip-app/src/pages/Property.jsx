@@ -14,9 +14,25 @@ import { BiFilterAlt } from "react-icons/bi";
 
 // ─── ROLE CONFIG ──────────────────────────────────────────────
 const ROLE_CONFIG = {
-  admin: { canAdd: true, canEdit: true, canDelete: true, canShare: false },
+  admin: { canAdd: true, canEdit: true, canDelete: true, canShare: true },
   marketing: { canAdd: false, canEdit: false, canDelete: false, canShare: true },
   direktur: { canAdd: false, canEdit: false, canDelete: false, canShare: false },
+};
+
+const isRumahCluster = (kategori, subkategori = "") =>
+  String(kategori || "").toLowerCase() === "rumah_cluster" ||
+  (String(kategori || "").toLowerCase() === "rumah" && /^cluster(?:\s*[-|:]\s*)?/i.test(String(subkategori || "")));
+
+const subkategoriLabel = (subkategori = "") =>
+  String(subkategori).replace(/^cluster(?:\s*[-|:]\s*)?/i, "").trim();
+
+const kategoriLabel = (kategori, subkategori = "") => {
+  if (isRumahCluster(kategori, subkategori)) return "Rumah Cluster";
+  return ({
+  rumah: "Rumah",
+  rumah_cluster: "Rumah Cluster",
+  "rumah cluster": "Rumah Cluster",
+  }[String(kategori || "").toLowerCase()] || kategori || "-");
 };
 
 const unitClass = {
@@ -70,6 +86,8 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
   const [form, setForm] = useState(() => ({
     ...getDefaultForm(),
     ...(initial || {}),
+    kategori: isRumahCluster(initial?.kategori, initial?.subkategori) ? "Rumah Cluster" : (initial?.kategori || "Rumah"),
+    subkategori: subkategoriLabel(initial?.subkategori),
     tanggal_listing: initial?.tanggal_listing ? String(initial.tanggal_listing).slice(0, 10) : "",
   }));
   const [fotos, setFotos] = useState([]);
@@ -510,7 +528,11 @@ export default function Property() {
       if (ltMax) params.ltMax = ltMax;
       
       const data = await propertiService.getAll(params);
-      setProperties(data);
+      setProperties(
+        String(kat).toLowerCase() === "rumah cluster"
+          ? data.filter((item) => isRumahCluster(item.kategori, item.subkategori))
+          : data
+      );
     } catch {
       showToast("Gagal memuat data properti", "error");
     } finally {
@@ -692,15 +714,15 @@ export default function Property() {
         </div>
         </div>
 
-        {filterPanelOpen && <div className="mt-3 grid grid-cols-1 gap-2 border-t border-red-100 pt-3 sm:grid-cols-2 lg:grid-cols-5">
+        {filterPanelOpen && <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border border-red-100 bg-red-50/40 p-3 sm:grid-cols-2 lg:grid-cols-5">
         <div className="flex items-center justify-between gap-3 pb-1 sm:col-span-2 lg:col-span-5">
-          <p className="text-xs font-medium text-gray-500">Pilih kriteria untuk mempersempit daftar properti.</p>
+          <p className="text-xs font-medium text-gray-600">Pilih kriteria yang diperlukan. Filter dapat dikombinasikan.</p>
           {activeFilterCount > 0 && <span className="shrink-0 text-xs font-semibold text-red-700">{activeFilterCount} aktif</span>}
         </div>
 
         {/* ─── Filter Kategori ─────────────────────────────────── */}
         <select
-          className="select select-bordered select-sm rounded-xl border-red-100 w-full sm:w-auto"
+          className="select select-bordered select-sm rounded-xl border-red-100 bg-white w-full sm:w-auto"
           value={filterKategori}
           onChange={e => setFilterKategori(e.target.value)}
         >
@@ -716,14 +738,14 @@ export default function Property() {
           <option value="Kombinasi">Kombinasi</option>
         </select>
 
-        <select className="select select-bordered select-sm w-full rounded-xl border-red-100 sm:w-auto" value={filterJenis} onChange={e => setFilterJenis(e.target.value)}>
+        <select className="select select-bordered select-sm w-full rounded-xl border-red-100 bg-white sm:w-auto" value={filterJenis} onChange={e => setFilterJenis(e.target.value)}>
           <option value="">Semua Penawaran</option>
           <option value="dijual">Dijual</option>
           <option value="disewa">Disewakan</option>
           <option value="dijual_dan_disewa">Jual &amp; Sewa</option>
         </select>
 
-        <select className="select select-bordered select-sm w-full rounded-xl border-red-100 sm:w-auto" value={filterStatusUnit} onChange={e => setFilterStatusUnit(e.target.value)}>
+        <select className="select select-bordered select-sm w-full rounded-xl border-red-100 bg-white sm:w-auto" value={filterStatusUnit} onChange={e => setFilterStatusUnit(e.target.value)}>
           <option value="">Semua Status Unit</option>
           <option value="tersedia">Tersedia</option>
           <option value="negosiasi">Negosiasi</option>
@@ -731,7 +753,7 @@ export default function Property() {
           <option value="tersewa">Tersewa</option>
         </select>
 
-        <select className="select select-bordered select-sm w-full rounded-xl border-red-100 sm:w-auto" value={filterKota} onChange={e => setFilterKota(e.target.value)}>
+        <select className="select select-bordered select-sm w-full rounded-xl border-red-100 bg-white sm:w-auto" value={filterKota} onChange={e => setFilterKota(e.target.value)}>
           <option value="">Semua Kota</option>
           <option value="Pekanbaru">Pekanbaru</option>
           <option value="Kampar">Kampar</option>
@@ -740,29 +762,35 @@ export default function Property() {
         </select>
 
         {/* ─── Filter Tanggal Dari ─────────────────────────────── */}
+        <label className="flex flex-col gap-1 text-[11px] font-semibold text-gray-600">
+          Dari tanggal listing
         <input
           type="date"
-          className="input input-bordered input-sm rounded-xl border-red-100 w-full sm:w-auto"
+          className="input input-bordered input-sm rounded-xl border-red-100 bg-white w-full sm:w-auto"
           value={filterDari}
           onChange={e => setFilterDari(e.target.value)}
           placeholder="Dari tanggal"
           title="Dari tanggal"
         />
+        </label>
 
         {/* ─── Filter Tanggal Sampai ───────────────────────────── */}
+        <label className="flex flex-col gap-1 text-[11px] font-semibold text-gray-600">
+          Sampai tanggal listing
         <input
           type="date"
-          className="input input-bordered input-sm rounded-xl border-red-100 w-full sm:w-auto"
+          className="input input-bordered input-sm rounded-xl border-red-100 bg-white w-full sm:w-auto"
           value={filterSampai}
           onChange={e => setFilterSampai(e.target.value)}
           placeholder="Sampai tanggal"
           title="Sampai tanggal"
         />
+        </label>
 
         {/* ─── Filter Harga Min ────────────────────────────────── */}
         <input
           type="number"
-          className="input input-bordered input-sm rounded-xl border-red-100 w-full sm:w-32"
+          className="input input-bordered input-sm rounded-xl border-red-100 bg-white w-full sm:w-32"
           value={filterHargaMin}
           onChange={e => setFilterHargaMin(e.target.value)}
           placeholder="Harga min"
@@ -772,7 +800,7 @@ export default function Property() {
         {/* ─── Filter Harga Max ────────────────────────────────── */}
         <input
           type="number"
-          className="input input-bordered input-sm rounded-xl border-red-100 w-full sm:w-32"
+          className="input input-bordered input-sm rounded-xl border-red-100 bg-white w-full sm:w-32"
           value={filterHargaMax}
           onChange={e => setFilterHargaMax(e.target.value)}
           placeholder="Harga max"
@@ -827,7 +855,7 @@ export default function Property() {
                 </div>
               </figure>
               <div className="card-body p-3 gap-1">
-                <p className="text-[10px] font-bold text-red-700 uppercase">{p.kategori} {p.subkategori}</p>
+                <p className="text-[10px] font-bold text-red-700 uppercase">{kategoriLabel(p.kategori, p.subkategori)} {subkategoriLabel(p.subkategori)}</p>
                 <div className="flex items-start gap-1">
                   <HiOutlineLocationMarker size={12} className="text-red-400 mt-0.5 shrink-0" />
                   <span className="text-xs text-gray-600 line-clamp-1">{p.nama_jalan}</span>
@@ -884,7 +912,7 @@ export default function Property() {
                     <p className="font-semibold text-sm text-gray-700 truncate max-w-48">{p.nama_jalan}</p>
                     <p className="text-xs text-gray-400">{p.kota}</p>
                   </td>
-                  <td><span className="text-xs text-gray-600">{p.kategori}</span></td>
+                  <td><span className="text-xs text-gray-600">{kategoriLabel(p.kategori, p.subkategori)}</span></td>
                   <td><span className="text-xs font-bold text-red-800">{p.harga_jual ? "Rp " + Number(p.harga_jual).toLocaleString("id-ID") : "-"}</span></td>
                   <td><span className={`badge badge-sm ${unitClass[p.status_unit]}`}>{unitLabel[p.status_unit]}</span></td>
                   <td>

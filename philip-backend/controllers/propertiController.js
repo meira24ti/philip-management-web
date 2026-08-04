@@ -18,8 +18,9 @@ const normalizeKategori = (value) => {
   const normalized = String(value || "").trim().toLowerCase();
   const mapping = {
     rumah: "rumah",
-    "rumah cluster": "rumah",
-    "rumah-cluster": "rumah",
+    "rumah cluster": "rumah_cluster",
+    "rumah-cluster": "rumah_cluster",
+    rumah_cluster: "rumah_cluster",
     ruko: "ruko",
     tanah: "tanah",
     gudang: "gudang",
@@ -135,7 +136,7 @@ exports.getById = async (req, res) => {
       SELECT p.id_properti AS id, p.*,
         tp.kategori, tp.subkategori, tp.jumlah_unit, tp.jumlah_kapling,
         v.nama_vendor, v.no_hp AS vendor_hp,
-        u.nama AS listed_by_nama
+        u.nama AS listed_by_nama, u.no_hp AS listed_by_hp
       FROM properti p
       LEFT JOIN tipe_properti tp ON tp.id_properti = p.id_properti
       LEFT JOIN vendor v ON v.id_vendor = p.id_vendor
@@ -445,7 +446,7 @@ exports.getShareText = async (req, res) => {
     const [rows] = await pool.query(`
       SELECT p.id_properti AS id, p.*,
         tp.kategori, tp.subkategori,
-        u.nama AS listed_by_nama
+        u.nama AS listed_by_nama, u.no_hp AS listed_by_hp
       FROM properti p
       LEFT JOIN tipe_properti tp ON tp.id_properti = p.id_properti
       LEFT JOIN user u ON u.id_user = p.listed_by

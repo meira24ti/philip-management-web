@@ -15,7 +15,7 @@ import { getImageUrl } from "../utils/imageUrl";
 
 // ─── Konfigurasi role ──────────────────────────────────────────
 const ROLE_CONFIG = {
-  admin: { canEdit: true, canDelete: true, canShare: false, canFlyer: true },
+  admin: { canEdit: true, canDelete: true, canShare: true, canFlyer: true },
   marketing: { canEdit: false, canDelete: false, canShare: true, canFlyer: true },
   direktur: { canEdit: false, canDelete: false, canShare: false, canFlyer: false },
 };
@@ -34,6 +34,18 @@ const unitLabel = {
   negosiasi: "Negosiasi"
 };
 
+const kategoriLabel = (kategori, subkategori = "") => {
+  if (String(kategori || "").toLowerCase() === "rumah" && /cluster/i.test(subkategori)) return "Rumah Cluster";
+  return ({
+  rumah: "Rumah",
+  rumah_cluster: "Rumah Cluster",
+  "rumah cluster": "Rumah Cluster",
+  }[String(kategori || "").toLowerCase()] || kategori || "-");
+};
+
+const subkategoriLabel = (subkategori = "") =>
+  String(subkategori).replace(/^cluster(?:\s*[-|:]\s*)?/i, "").trim();
+
 // ─── KOMPONEN UTAMA ────────────────────────────────────────────
 export default function PropertyDetail() {
   const { id } = useParams();
@@ -47,6 +59,7 @@ export default function PropertyDetail() {
   const [error, setError] = useState("");
   const [fotoIdx, setFotoIdx] = useState(0);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [generatingFlyer, setGeneratingFlyer] = useState(false);
 
   // ─── Transaksi state ────────────────────────────────────────
   const [showTransaksi, setShowTransaksi] = useState(false);
@@ -107,6 +120,7 @@ export default function PropertyDetail() {
   // ─── Handler download flyer ──────────────────────────────
   const handleDownloadFlyer = async () => {
     try {
+      setGeneratingFlyer(true);
       const data = await propertiService.getById(id);
       const blob = await generateFlyerPNG(data, { scale: 3 });
       if (!blob) throw new Error("Blob flyer kosong");
@@ -115,6 +129,8 @@ export default function PropertyDetail() {
     } catch (err) {
       console.error("Gagal generate flyer:", err);
       showToast(err.message || "Gagal membuat flyer", "error");
+    } finally {
+      setGeneratingFlyer(false);
     }
   };
   // ─── Handler submit transaksi ────────────────────────────
@@ -203,9 +219,10 @@ export default function PropertyDetail() {
           {config.canFlyer && (
             <button
               onClick={handleDownloadFlyer}
+              disabled={generatingFlyer}
               className="btn btn-sm btn-outline border-red-200 text-red-700 gap-1"
             >
-              Download Flyer
+              {generatingFlyer ? "Menyiapkan Flyer..." : "Download Flyer"}
             </button>
           )}
           {config.canEdit && (
@@ -366,7 +383,7 @@ export default function PropertyDetail() {
           <div className="card bg-base-100 shadow border border-red-50">
             <div className="card-body p-4 gap-2">
               <p className="text-[10px] font-bold text-red-400 uppercase tracking-wide">
-                {p.kategori} {p.subkategori}
+                {kategoriLabel(p.kategori, p.subkategori)} {subkategoriLabel(p.subkategori)}
               </p>
               <h2 className="text-base font-bold text-gray-800 leading-tight">{p.nama_jalan}</h2>
               <div className="flex items-center gap-1 text-gray-400">
