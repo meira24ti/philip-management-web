@@ -8,6 +8,7 @@ ALTER TABLE tipe_properti
     'tanah',
     'gudang',
     'villa',
+    'rumah_subsidi',
     'kios',
-    'dll'
+    'kombinasi'
   ) NOT NULL;

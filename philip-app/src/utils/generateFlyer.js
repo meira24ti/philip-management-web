@@ -14,11 +14,14 @@ const categoryLabel = (value, subcategory = "") => {
     rumah: "RUMAH",
     rumah_cluster: "RUMAH CLUSTER",
     "rumah cluster": "RUMAH CLUSTER",
+    rumah_subsidi: "RUMAH SUBSIDI",
+    "rumah subsidi": "RUMAH SUBSIDI",
     ruko: "RUKO",
     tanah: "TANAH",
     gudang: "GUDANG",
     villa: "VILLA",
     apartemen: "APARTEMEN",
+    kombinasi: "KOMBINASI",
   };
   return labels[String(value || "").trim().toLowerCase()] || String(value || "PROPERTI").toUpperCase();
 };

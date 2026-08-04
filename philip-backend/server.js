@@ -115,6 +115,10 @@ app.use((err, req, res, next) => {
     });
   }
 
+  if (err && err.message && err.message.includes("File harus berupa gambar")) {
+    return res.status(400).json({ message: err.message });
+  }
+
   if (err && err.message && err.message.includes("CORS policy")) {
     return res.status(403).json({
       message: err.message,

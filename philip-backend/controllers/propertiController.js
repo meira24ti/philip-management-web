@@ -25,9 +25,13 @@ const normalizeKategori = (value) => {
     tanah: "tanah",
     gudang: "gudang",
     villa: "villa",
+    "rumah subsidi": "rumah_subsidi",
+    "rumah-subsidi": "rumah_subsidi",
+    rumah_subsidi: "rumah_subsidi",
     kios: "kios",
+    kombinasi: "kombinasi",
   };
-  return mapping[normalized] || "dll";
+  return mapping[normalized] || null;
 };
 
 const allowedPropertyFields = [
@@ -210,6 +214,12 @@ exports.create = async (req, res) => {
 
     const id = crypto.randomUUID();
     const { kategori, subkategori, jumlah_unit, jumlah_kapling } = req.body;
+    const normalizedKategori = normalizeKategori(kategori);
+    if (!normalizedKategori) {
+      const error = new Error("Kategori properti tidak valid");
+      error.statusCode = 400;
+      throw error;
+    }
 
     const propertiData = {};
     for (const key of allowedPropertyFields) {
@@ -296,7 +306,7 @@ exports.create = async (req, res) => {
     await conn.query("INSERT INTO tipe_properti SET ?", [{
       id_tipeproperti: crypto.randomUUID(),
       id_properti:     id,
-      kategori: normalizeKategori(kategori),
+      kategori: normalizedKategori,
       subkategori: subkategori || "",
       jumlah_unit: jumlah_unit || 1,
       jumlah_kapling: jumlah_kapling || null,
@@ -398,9 +408,32 @@ exports.update = async (req, res) => {
 
     const { kategori, subkategori, jumlah_unit, jumlah_kapling } = req.body;
     if (kategori !== undefined || subkategori !== undefined || jumlah_unit !== undefined || jumlah_kapling !== undefined) {
+      const tipeUpdates = [];
+      const tipeParams = [];
+      if (kategori !== undefined) {
+        const normalizedKategori = normalizeKategori(kategori);
+        if (!normalizedKategori) {
+          return res.status(400).json({ message: "Kategori properti tidak valid" });
+        }
+        tipeUpdates.push("kategori=?");
+        tipeParams.push(normalizedKategori);
+      }
+      if (subkategori !== undefined) {
+        tipeUpdates.push("subkategori=?");
+        tipeParams.push(subkategori || "");
+      }
+      if (jumlah_unit !== undefined) {
+        tipeUpdates.push("jumlah_unit=?");
+        tipeParams.push(jumlah_unit || 1);
+      }
+      if (jumlah_kapling !== undefined) {
+        tipeUpdates.push("jumlah_kapling=?");
+        tipeParams.push(jumlah_kapling || null);
+      }
+      tipeParams.push(propertiId);
       await pool.query(
-        "UPDATE tipe_properti SET kategori=?, subkategori=?, jumlah_unit=?, jumlah_kapling=? WHERE id_properti=?",
-        [normalizeKategori(kategori), subkategori, jumlah_unit, jumlah_kapling, propertiId]
+        `UPDATE tipe_properti SET ${tipeUpdates.join(", ")} WHERE id_properti=?`,
+        tipeParams
       );
     }
 

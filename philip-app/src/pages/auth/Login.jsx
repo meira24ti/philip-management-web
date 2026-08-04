@@ -34,7 +34,7 @@ export default function Login() {
         setLoading(true);
         setError("");
         try {
-            await login(dataForm.email.trim(), dataForm.password.trim());
+            await login(dataForm.email.trim(), dataForm.password);
             navigate("/dashboard");
         } catch (err) {
             setError(err.response?.data?.message || "Email atau password salah!");
@@ -61,7 +61,7 @@ export default function Login() {
     return (
         <div>
             <h2 className="text-2xl font-semibold text-gray-700 mb-6 text-center">
-                Welcome Back 👋
+                Selamat Datang Kembali
             </h2>
 
             {errorInfo}
@@ -79,12 +79,13 @@ export default function Login() {
                         Email Address
                     </label>
                     <input
-                        type="text"
+                        type="email"
                         name="email"
                         value={dataForm.email}
                         onChange={handleChange}
                         className="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition-all"
                         placeholder="Masukkan email"
+                        autoComplete="email"
                         required
                     />
                 </div>
@@ -100,13 +101,15 @@ export default function Login() {
                             value={dataForm.password}
                             onChange={handleChange}
                             className="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition-all"
-                            placeholder="Masukkan password"
+                        placeholder="Masukkan password"
+                        autoComplete="current-password"
                             required
                         />
                         <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
                             className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-800"
+                            aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
                         >
                             {showPassword ? <AiOutlineEyeInvisible size={20} /> : <AiOutlineEye size={20} />}
                         </button>

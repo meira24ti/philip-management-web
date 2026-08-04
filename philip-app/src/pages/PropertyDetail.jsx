@@ -40,6 +40,9 @@ const kategoriLabel = (kategori, subkategori = "") => {
   rumah: "Rumah",
   rumah_cluster: "Rumah Cluster",
   "rumah cluster": "Rumah Cluster",
+  rumah_subsidi: "Rumah Subsidi",
+  "rumah subsidi": "Rumah Subsidi",
+  kombinasi: "Kombinasi",
   }[String(kategori || "").toLowerCase()] || kategori || "-");
 };
 
