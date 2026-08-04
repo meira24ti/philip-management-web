@@ -36,7 +36,7 @@ export default function Reports() {
   const [riwayatLaporan, setRiwayatLaporan] = useState([]);
   const [loadingRiwayat, setLoadingRiwayat] = useState(false);
 
-  const isDirektur = role === "direktur";
+  const canManageReports = ["direktur", "admin"].includes(role);
   const canSeeStats = ["direktur", "admin"].includes(role);
 
   // ─── Load Statistik ──────────────────────────────────────
@@ -54,7 +54,7 @@ export default function Reports() {
 
   // ─── Load Riwayat Laporan ──────────────────────────────
   const loadRiwayat = useCallback(async () => {
-    if (!isDirektur) return;
+    if (!canManageReports) return;
     try {
       setLoadingRiwayat(true);
       const data = await laporanService.getAll();
@@ -64,17 +64,17 @@ export default function Reports() {
     } finally {
       setLoadingRiwayat(false);
     }
-  }, [isDirektur, showToast]);
+  }, [canManageReports, showToast]);
 
   useEffect(() => {
     const loadAll = async () => {
       await loadStats();
-      if (isDirektur) {
+      if (canManageReports) {
         await loadRiwayat();
       }
     };
     loadAll();
-  }, [isDirektur, loadStats, loadRiwayat]);
+  }, [canManageReports, loadStats, loadRiwayat]);
   const handleGenerate = async () => {
     try {
       setGenerating(true);
@@ -257,7 +257,7 @@ export default function Reports() {
       </div>
 
       {/* ── Generate Laporan (Direktur only) ── */}
-      {isDirektur && (
+      {canManageReports && (
         <div className="card bg-base-100 shadow border border-red-50">
           <div className="card-body p-4 sm:p-5">
             <h3 className="font-bold text-red-900 mb-1">Generate Laporan PDF</h3>
@@ -312,7 +312,7 @@ export default function Reports() {
       )}
 
       {/* ── Riwayat Laporan (Direktur only) ── */}
-      {isDirektur && (
+      {canManageReports && (
         <div className="card bg-base-100 shadow border border-red-50">
           <div className="card-body p-4 sm:p-5">
             <div className="flex items-center justify-between gap-3 mb-3">

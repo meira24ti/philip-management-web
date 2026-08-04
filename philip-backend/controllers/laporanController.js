@@ -64,6 +64,19 @@ exports.generate = async (req, res) => {
       data = { byStatus, byTipe };
 
     } else {
+      const [[byStatus]] = await pool.query(`
+        SELECT
+          COUNT(*) AS total_listing,
+          SUM(status_unit='tersedia') AS tersedia,
+          SUM(status_unit='terjual') AS terjual,
+          SUM(status_unit='tersewa') AS tersewa,
+          SUM(status_unit='negosiasi') AS negosiasi
+        FROM properti`);
+      const [byTipe] = await pool.query(`
+        SELECT COALESCE(kategori, 'Lainnya') AS kategori, COUNT(*) AS jumlah
+        FROM tipe_properti
+        GROUP BY kategori
+        ORDER BY jumlah DESC`);
       const [trenBulan] = await pool.query(`
         SELECT DATE_FORMAT(tanggal_transaksi,'%Y-%m') AS bulan,
                COUNT(*) AS total_transaksi, SUM(komisi_nominal) AS total_komisi
@@ -71,7 +84,17 @@ exports.generate = async (req, res) => {
         WHERE tanggal_transaksi BETWEEN ? AND ?
         GROUP BY bulan ORDER BY bulan`,
         [periodeStart, periodeEnd]);
-      data = { trenBulan };
+      const [[summary]] = await pool.query(`
+        SELECT
+          COUNT(*) AS total_transaksi,
+          SUM(jenis='terjual') AS total_terjual,
+          SUM(jenis='tersewa') AS total_tersewa,
+          SUM(harga_aktual) AS nilai_transaksi,
+          SUM(komisi_nominal) AS total_komisi
+        FROM transaksi
+        WHERE tanggal_transaksi BETWEEN ? AND ?`,
+        [periodeStart, periodeEnd]);
+      data = { byStatus, byTipe, trenBulan, summary };
     }
 
     const judul = `Laporan ${tipe.charAt(0).toUpperCase() + tipe.slice(1)} — ${periodeStart} s/d ${periodeEnd}`;
@@ -186,11 +209,32 @@ function buildLaporanHTML(judul, tipe, data, dari, sampai) {
       <table><thead><tr><th>Tipe</th><th>Jumlah</th><th>Proporsi</th><th>%</th></tr></thead>
       <tbody>${tipeRows}</tbody></table>`;
   } else {
+    const summary = data.summary || {};
+    const status = data.byStatus || {};
+    const typeRows = (data.byTipe || []).map(t => `
+      <tr><td>${t.kategori || "-"}</td><td>${t.jumlah || 0}</td>
+      <td><div class="bar" style="width:${status.total_listing ? Math.round(Number(t.jumlah || 0) / Number(status.total_listing) * 100) : 0}%"></div></td></tr>`).join("");
     const trenRows = (data.trenBulan || []).map(t => `
-      <tr><td>${t.bulan}</td><td>${t.total_transaksi}</td><td>${fmt(t.total_komisi)}</td></tr>`).join("");
-    body = `<h2>Tren Transaksi</h2>
-      <table><thead><tr><th>Bulan</th><th>Total</th><th>Komisi</th></tr></thead>
-      <tbody>${trenRows}</tbody></table>`;
+      <tr><td>${t.bulan}</td><td>${t.total_transaksi || 0}</td><td>${fmt(t.total_komisi)}</td></tr>`).join("");
+    body = `
+      <div class="kpi-row">
+        <div class="kpi"><div class="kv">${status.total_listing || 0}</div><div class="kl">Total Listing</div></div>
+        <div class="kpi"><div class="kv green">${status.tersedia || 0}</div><div class="kl">Unit Tersedia</div></div>
+        <div class="kpi"><div class="kv red">${status.terjual || 0}</div><div class="kl">Unit Terjual</div></div>
+        <div class="kpi"><div class="kv blue">${status.tersewa || 0}</div><div class="kl">Unit Tersewa</div></div>
+      </div>
+      <div class="kpi-row">
+        <div class="kpi"><div class="kv">${summary.total_transaksi || 0}</div><div class="kl">Transaksi Periode</div></div>
+        <div class="kpi"><div class="kv">${fmt(summary.nilai_transaksi)}</div><div class="kl">Nilai Transaksi</div></div>
+        <div class="kpi"><div class="kv green">${fmt(summary.total_komisi)}</div><div class="kl">Komisi Diperoleh</div></div>
+      </div>
+      <h2>Ringkasan Status Properti</h2>
+      <table><thead><tr><th>Tersedia</th><th>Negosiasi</th><th>Terjual</th><th>Tersewa</th></tr></thead>
+      <tbody><tr><td>${status.tersedia || 0}</td><td>${status.negosiasi || 0}</td><td>${status.terjual || 0}</td><td>${status.tersewa || 0}</td></tr></tbody></table>
+      <h2>Komposisi Tipe Properti</h2>
+      <table><thead><tr><th>Tipe</th><th>Jumlah</th><th>Proporsi</th></tr></thead><tbody>${typeRows || "<tr><td colspan='3'>Belum ada data</td></tr>"}</tbody></table>
+      <h2>Tren Transaksi Periode</h2>
+      <table><thead><tr><th>Bulan</th><th>Total Transaksi</th><th>Total Komisi</th></tr></thead><tbody>${trenRows || "<tr><td colspan='3'>Belum ada transaksi pada periode ini</td></tr>"}</tbody></table>`;
   }
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -218,4 +262,3 @@ function buildLaporanHTML(judul, tipe, data, dari, sampai) {
     </div>
   </body></html>`;
 }
-

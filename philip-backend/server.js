@@ -75,7 +75,7 @@ app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use(
   "/uploads/laporan",
   auth,
-  rbac("direktur"),
+  rbac("direktur", "admin"),
   express.static(path.join(__dirname, "uploads", "laporan"))
 );
 app.use(
