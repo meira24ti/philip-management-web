@@ -1,7 +1,6 @@
 // philip-app/src/pages/Staff.jsx
 import { useMemo, useState, useEffect, useCallback } from "react";
 import {
-  HiChevronDown,
   HiOutlineBan,
   HiOutlineMail,
   HiOutlinePencil,
@@ -228,8 +227,6 @@ export default function Staff() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
-  const [roleOpen, setRoleOpen] = useState(false);
-  const [statusOpen, setStatusOpen] = useState(false);
   const [showCreatePassword, setShowCreatePassword] = useState(false);
 
   // ─── Edit form + foto ──────────────────────────────────
@@ -383,13 +380,7 @@ export default function Staff() {
 
   // ─── Render ──────────────────────────────────────────────
   return (
-    <div
-      className="space-y-5"
-      onClick={() => {
-        setRoleOpen(false);
-        setStatusOpen(false);
-      }}
-    >
+    <div className="space-y-5">
       {/* ── Header ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -446,69 +437,23 @@ export default function Staff() {
             )}
           </label>
 
-          <div className="relative">
-            <button
-              onClick={() => {
-                setRoleOpen(!roleOpen);
-                setStatusOpen(false);
-              }}
-              className="btn btn-sm btn-outline rounded-xl border-red-200 text-red-800 hover:bg-red-50"
-            >
-              {roleFilter === "Semua" ? "Semua Role" : roleLabel[roleFilter] || roleFilter}
-              <HiChevronDown size={13} className={roleOpen ? "rotate-180 transition-transform" : "transition-transform"} />
-            </button>
-
-            {roleOpen && (
-              <div className="absolute left-0 top-full z-20 mt-1 min-w-36 overflow-hidden rounded-xl border border-red-100 bg-white shadow-xl">
-                {["Semua", "admin", "marketing", "direktur"].map((role) => (
-                  <button
-                    key={role}
-                    onClick={() => {
-                      setRoleFilter(role);
-                      setRoleOpen(false);
-                    }}
-                    className={`w-full px-4 py-2 text-left text-sm hover:bg-red-50 ${
-                      roleFilter === role ? "bg-red-50 font-bold text-red-800" : "text-gray-700"
-                    }`}
-                  >
-                    {role === "Semua" ? "Semua Role" : roleLabel[role] || role}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="relative">
-            <button
-              onClick={() => {
-                setStatusOpen(!statusOpen);
-                setRoleOpen(false);
-              }}
-              className="btn btn-sm btn-outline rounded-xl border-red-200 text-red-800 hover:bg-red-50"
-            >
-              {statusFilter}
-              <HiChevronDown size={13} className={statusOpen ? "rotate-180 transition-transform" : "transition-transform"} />
-            </button>
-
-            {statusOpen && (
-              <div className="absolute left-0 top-full z-20 mt-1 min-w-28 overflow-hidden rounded-xl border border-red-100 bg-white shadow-xl">
-                {["Semua", "Aktif", "Nonaktif"].map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => {
-                      setStatus(status);
-                      setStatusOpen(false);
-                    }}
-                    className={`w-full px-4 py-2 text-left text-sm hover:bg-red-50 ${
-                      statusFilter === status ? "bg-red-50 font-bold text-red-800" : "text-gray-700"
-                    }`}
-                  >
-                    {status}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <label className="min-w-36 flex-1 sm:flex-none">
+            <span className="sr-only">Filter role</span>
+            <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="select select-bordered select-sm w-full rounded-xl border-red-100 bg-white text-sm font-medium text-gray-700 focus:border-red-400">
+              <option value="Semua">Semua role</option>
+              <option value="admin">Admin</option>
+              <option value="marketing">Marketing</option>
+              <option value="direktur">Direktur</option>
+            </select>
+          </label>
+          <label className="min-w-32 flex-1 sm:flex-none">
+            <span className="sr-only">Filter status</span>
+            <select value={statusFilter} onChange={(event) => setStatus(event.target.value)} className="select select-bordered select-sm w-full rounded-xl border-red-100 bg-white text-sm font-medium text-gray-700 focus:border-red-400">
+              <option value="Semua">Semua status</option>
+              <option value="Aktif">Aktif</option>
+              <option value="Nonaktif">Nonaktif</option>
+            </select>
+          </label>
         </div>
       </div>
 

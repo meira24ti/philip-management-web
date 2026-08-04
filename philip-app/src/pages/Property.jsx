@@ -10,6 +10,7 @@ import {
   HiOutlineTrash, HiSearch, HiX,
   HiOutlineViewGrid, HiOutlineViewList, HiOutlineLocationMarker, HiTag,
 } from "react-icons/hi";
+import { BiFilterAlt } from "react-icons/bi";
 
 // ─── ROLE CONFIG ──────────────────────────────────────────────
 const ROLE_CONFIG = {
@@ -473,6 +474,8 @@ export default function Property() {
   const [filterKota, setFilterKota] = useState("");
   const [filterLtMin, setFilterLtMin] = useState("");
   const [filterLtMax, setFilterLtMax] = useState("");
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  const activeFilterCount = [filterKategori, filterJenis, filterStatusUnit, filterKota, filterDari, filterSampai, filterHargaMin, filterHargaMax, filterLtMin, filterLtMax].filter(Boolean).length;
 
   // ─── State untuk dropdown vendor & marketing ────────────────
   const [vendors, setVendors] = useState([]);
@@ -656,7 +659,8 @@ export default function Property() {
       </div>
 
       {/* ─── Search ────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-3 flex gap-2 flex-wrap items-end">
+      <div className="rounded-2xl border border-red-100 bg-white p-3 shadow-sm">
+        <div className="flex items-center gap-2">
         <label className="input input-bordered input-sm flex min-w-0 w-full sm:w-auto flex-1 items-center gap-2 rounded-xl border-red-100">
           <HiSearch className="text-gray-400" size={16} />
           <input
@@ -672,6 +676,28 @@ export default function Property() {
             </button>
           )}
         </label>
+
+        <button
+          type="button"
+          onClick={() => setFilterPanelOpen((open) => !open)}
+          aria-expanded={filterPanelOpen}
+          className={`btn btn-sm shrink-0 rounded-xl border-red-200 ${filterPanelOpen || activeFilterCount ? "bg-red-50 text-red-800" : "btn-outline text-red-800 hover:bg-red-50"}`}
+        >
+          <BiFilterAlt size={16} />
+          <span className="hidden sm:inline">Filter</span>
+          {activeFilterCount > 0 && <span className="badge badge-sm border-0 bg-red-800 text-white">{activeFilterCount}</span>}
+        </button>
+        <div className="ml-auto flex shrink-0 gap-1">
+          <button onClick={() => setViewMode("grid")} className={`btn btn-sm rounded-xl ${viewMode === "grid" ? "btn-error text-white" : "btn-ghost text-gray-400"}`} aria-label="Tampilan grid"><HiOutlineViewGrid size={16} /></button>
+          <button onClick={() => setViewMode("list")} className={`btn btn-sm rounded-xl ${viewMode === "list" ? "btn-error text-white" : "btn-ghost text-gray-400"}`} aria-label="Tampilan daftar"><HiOutlineViewList size={16} /></button>
+        </div>
+        </div>
+
+        {filterPanelOpen && <div className="mt-3 grid grid-cols-1 gap-2 border-t border-red-100 pt-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="flex items-center justify-between gap-3 pb-1 sm:col-span-2 lg:col-span-5">
+          <p className="text-xs font-medium text-gray-500">Pilih kriteria untuk mempersempit daftar properti.</p>
+          {activeFilterCount > 0 && <span className="shrink-0 text-xs font-semibold text-red-700">{activeFilterCount} aktif</span>}
+        </div>
 
         {/* ─── Filter Kategori ─────────────────────────────────── */}
         <select
@@ -758,25 +784,12 @@ export default function Property() {
         <input type="number" className="input input-bordered input-sm w-full rounded-xl border-red-100 sm:w-32" value={filterLtMax} onChange={e => setFilterLtMax(e.target.value)} placeholder="LT max (m²)" title="Luas tanah maksimum" />
 
         {(filterKategori || filterJenis || filterStatusUnit || filterKota || filterDari || filterSampai || filterHargaMin || filterHargaMax || filterLtMin || filterLtMax || search) && (
-          <button onClick={() => { setSearch(""); setFilterKategori(""); setFilterJenis(""); setFilterStatusUnit(""); setFilterKota(""); setFilterDari(""); setFilterSampai(""); setFilterHargaMin(""); setFilterHargaMax(""); setFilterLtMin(""); setFilterLtMax(""); }} className="btn btn-sm btn-ghost rounded-xl text-red-700">
+          <button onClick={() => { setSearch(""); setFilterKategori(""); setFilterJenis(""); setFilterStatusUnit(""); setFilterKota(""); setFilterDari(""); setFilterSampai(""); setFilterHargaMin(""); setFilterHargaMax(""); setFilterLtMin(""); setFilterLtMax(""); }} className="btn btn-sm btn-ghost justify-self-start rounded-xl text-red-700 sm:col-span-2 lg:col-span-5">
             Reset Filter
           </button>
         )}
 
-        <div className="flex gap-1 sm:ml-auto">
-          <button
-            onClick={() => setViewMode("grid")}
-            className={`btn btn-sm rounded-xl ${viewMode === "grid" ? "btn-error text-white" : "btn-ghost text-gray-400"}`}
-          >
-            <HiOutlineViewGrid size={16} />
-          </button>
-          <button
-            onClick={() => setViewMode("list")}
-            className={`btn btn-sm rounded-xl ${viewMode === "list" ? "btn-error text-white" : "btn-ghost text-gray-400"}`}
-          >
-            <HiOutlineViewList size={16} />
-          </button>
-        </div>
+        </div>}
       </div>
 
       {/* ─── Grid / List ──────────────────────────────────────── */}

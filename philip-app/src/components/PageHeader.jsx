@@ -1,21 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { BiBell, BiChevronDown, BiRefresh } from "react-icons/bi";
-import { HiOutlineCheck, HiOutlineHome } from "react-icons/hi";
+import { HiOutlineHome } from "react-icons/hi";
 import { useAuth } from "../context/useAuth";
 import api from "../services/api";
 import { getImageUrl } from "../utils/imageUrl";
 
-const readStorageKey = (userId) => `philip-notifications-read:${userId || "guest"}`;
 const APP_STARTED = Date.now();
-
-const readNotificationIds = (userId) => {
-  try {
-    return new Set(JSON.parse(localStorage.getItem(readStorageKey(userId)) || "[]"));
-  } catch {
-    return new Set();
-  }
-};
 
 export default function PageHeader() {
   const { user, role, logout } = useAuth();
@@ -25,7 +16,6 @@ export default function PageHeader() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifs, setNotifs] = useState([]);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
-  const [readIds, setReadIds] = useState(() => readNotificationIds(user?.id));
   const [avatarError, setAvatarError] = useState(null);
   const notifRef = useRef(null);
   const profileRef = useRef(null);
@@ -48,11 +38,6 @@ export default function PageHeader() {
   }, [loadNotifications]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setReadIds(readNotificationIds(user?.id)), 0);
-    return () => window.clearTimeout(timer);
-  }, [user?.id]);
-
-  useEffect(() => {
     const handler = (event) => {
       if (notifRef.current && !notifRef.current.contains(event.target)) setNotifOpen(false);
       if (profileRef.current && !profileRef.current.contains(event.target)) setProfileOpen(false);
@@ -60,12 +45,6 @@ export default function PageHeader() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-
-  const markAllRead = () => {
-    const next = new Set(notifs.map((notification) => notification.id_log));
-    localStorage.setItem(readStorageKey(user?.id), JSON.stringify([...next]));
-    setReadIds(next);
-  };
 
   const relativeTime = (date) => {
     const seconds = Math.max(0, Math.floor((APP_STARTED - new Date(date).getTime()) / 1000));
@@ -82,7 +61,6 @@ export default function PageHeader() {
 
   const avatarKey = user?.foto_profil || "no-avatar";
   const initials = user?.nama ? user.nama.split(" ").map((name) => name[0]).join("").slice(0, 2).toUpperCase() : "?";
-  const unreadCount = notifs.filter((notification) => !readIds.has(notification.id_log)).length;
   const pageTitle = (() => {
     if (location.pathname.startsWith("/property/")) return "Detail Properti";
     if (location.pathname === "/property") return "Properti";
@@ -103,28 +81,22 @@ export default function PageHeader() {
         <div className="relative" ref={notifRef}>
           <button onClick={() => { setNotifOpen((open) => !open); setProfileOpen(false); }} className="relative rounded-xl p-2 text-red-800 transition-colors hover:bg-red-50" aria-label="Buka notifikasi">
             <BiBell size={20} />
-            {unreadCount > 0 && <span className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold text-white">{unreadCount > 9 ? "9+" : unreadCount}</span>}
           </button>
 
           {notifOpen && (
-            <div className="absolute right-0 z-[60] mt-2 w-[calc(100vw_-_1.5rem)] max-w-[22rem] overflow-hidden rounded-2xl border border-red-100 bg-white shadow-xl">
+            <div className="fixed inset-x-3 top-16 z-[60] max-h-[calc(100dvh-5rem)] overflow-hidden rounded-2xl border border-red-100 bg-white shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[22rem] sm:max-h-none">
               <div className="flex items-center justify-between border-b border-red-50 p-3">
-                <div><p className="text-sm font-bold text-red-900">Notifikasi</p><p className="text-xs text-gray-400">{unreadCount ? `${unreadCount} belum dibaca` : "Semua sudah dibaca"}</p></div>
+                <div><p className="text-sm font-bold text-red-900">Notifikasi</p><p className="text-xs text-gray-400">Aktivitas terkini</p></div>
                 <div className="flex items-center gap-1">
                   <button onClick={loadNotifications} className="btn btn-ghost btn-xs btn-square text-red-700" title="Muat ulang" aria-label="Muat ulang notifikasi"><BiRefresh size={16} className={loadingNotifs ? "animate-spin" : ""} /></button>
-                  {notifs.length > 0 && <button onClick={markAllRead} className="btn btn-ghost btn-xs gap-1 text-red-700"><HiOutlineCheck size={14} /> Baca semua</button>}
                 </div>
               </div>
-              <div className="max-h-80 overflow-y-auto">
+              <div className="max-h-[calc(100dvh-8.5rem)] overflow-y-auto sm:max-h-80">
                 {loadingNotifs && notifs.length === 0 ? <div className="flex justify-center py-8"><span className="loading loading-spinner loading-sm text-red-800" /></div>
                   : notifs.length === 0 ? <p className="py-8 text-center text-sm text-gray-400">Belum ada notifikasi</p>
-                  : notifs.map((notification) => {
-                    const unread = !readIds.has(notification.id_log);
-                    return <div key={notification.id_log} className={`flex gap-3 border-b border-red-50 px-4 py-3 last:border-0 ${unread ? "bg-red-50/60" : ""}`}>
-                      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${unread ? "bg-red-500" : "bg-gray-200"}`} />
-                      <div className="min-w-0"><p className="text-sm font-medium text-gray-800">{notification.aksi_label}</p><p className="break-words text-xs text-gray-500">{notification.detail}</p><p className="mt-1 text-xs text-gray-300">{relativeTime(notification.created_at)}</p></div>
-                    </div>;
-                  })}
+                  : notifs.map((notification) => <div key={notification.id_log} className="border-b border-red-50 px-4 py-3 last:border-0">
+                    <p className="text-sm font-semibold text-gray-800">{notification.aksi_label}</p><p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-gray-600">{notification.detail}</p><p className="mt-1.5 text-xs text-gray-400">{relativeTime(notification.created_at)}</p>
+                  </div>)}
               </div>
             </div>
           )}
