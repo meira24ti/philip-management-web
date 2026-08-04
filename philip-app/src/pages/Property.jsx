@@ -47,10 +47,8 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
     luas_bangunan: "",
     kamar_tidur: "",
     kamar_mandi: "",
-    carport: "",
     daya_listrik: "",
     sumber_air: "",
-    row_jalan: "",
     sertifikat: "",
     keamanan: "",
     daftar_bonus: "",
@@ -59,20 +57,21 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
     spanduk: false,
     kunci: false,
     feed: false,
-    sudah_share: false,
     status_unit: "tersedia",
     kategori: "Rumah",
     subkategori: "",
-    jumlah_unit: 1,
-    jumlah_kapling: "",
     id_vendor: "",
+    nama_vendor: "",
+    vendor_hp: "",
     listed_by: "",
-    latitude: "",
-    longtitude: "",
     gmaps_url: "",
   });
 
-  const [form, setForm] = useState(() => ({ ...getDefaultForm(), ...(initial || {}) }));
+  const [form, setForm] = useState(() => ({
+    ...getDefaultForm(),
+    ...(initial || {}),
+    tanggal_listing: initial?.tanggal_listing ? String(initial.tanggal_listing).slice(0, 10) : "",
+  }));
   const [fotos, setFotos] = useState([]);
   const [showVendorForm, setShowVendorForm] = useState(false);
   const [vendorDraft, setVendorDraft] = useState({ nama_vendor: "", no_hp: "" });
@@ -98,7 +97,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
           <label className="form-control">
             <div className="label py-0.5"><span className={labelCls}>No. Folder</span></div>
             <input className={inputCls} value={form.no_folder}
-              onChange={e => set("no_folder", e.target.value)} placeholder="PRE-001" />
+              onChange={e => set("no_folder", e.target.value)} placeholder="PRE-001" required />
           </label>
           <label className="form-control">
             <div className="label py-0.5"><span className={labelCls}>Tanggal Listing *</span></div>
@@ -129,16 +128,6 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
                 .map(s => <option key={s}>{s}</option>)}
             </select>
           </label>
-          <label className="form-control">
-            <div className="label py-0.5"><span className={labelCls}>Jumlah Unit</span></div>
-            <input type="number" min="1" className={inputCls} value={form.jumlah_unit}
-              onChange={e => set("jumlah_unit", e.target.value)} />
-          </label>
-          <label className="form-control">
-            <div className="label py-0.5"><span className={labelCls}>Jumlah Kapling</span></div>
-            <input type="number" min="1" className={inputCls} value={form.jumlah_kapling}
-              onChange={e => set("jumlah_kapling", e.target.value)} placeholder="Khusus tanah" />
-          </label>
         </div>
       </div>
 
@@ -148,8 +137,9 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
         <div className="grid grid-cols-1 gap-3">
           <label className="form-control">
             <div className="label py-0.5"><span className={labelCls}>Vendor / Pemilik Properti *</span></div>
-            <select className={selectCls} value={form.id_vendor}
-              onChange={e => set("id_vendor", e.target.value)} required>
+            <input className={inputCls} value={form.nama_vendor} onChange={e => set("nama_vendor", e.target.value)} placeholder="Nama lengkap pemilik" required />
+            <select className={`hidden ${selectCls}`} value={form.id_vendor}
+              onChange={e => set("id_vendor", e.target.value)}>
               <option value="">Pilih vendor...</option>
               {vendors.map(v => (
                 <option key={v.id_vendor} value={v.id_vendor}>
@@ -157,7 +147,8 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
                 </option>
               ))}
             </select>
-            <div className="label py-0.5">
+            <input type="tel" className={`${inputCls} mt-2`} value={form.vendor_hp} onChange={e => set("vendor_hp", e.target.value)} placeholder="Nomor HP vendor" required />
+            <div className="hidden">
               <span className="label-text-alt text-xs text-gray-400">
                 Vendor belum ada?{" "}
                 <button type="button" className="text-red-600 underline"
@@ -324,10 +315,8 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
         <p className="text-sm font-bold text-red-900 mb-2">Spesifikasi Teknis</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {[
-            ["carport", "Carport", ["Tidak ada", "1 mobil", "2 mobil", "3 mobil", "Lebih dari 3"]],
             ["daya_listrik", "Daya Listrik", ["900 Watt", "1.300 Watt", "2.200 Watt", "3.500 Watt", "4.400 Watt", "5.500 Watt", "Lebih dari 5.500 Watt"]],
             ["sumber_air", "Sumber Air", ["PDAM", "Sumur Bor", "Sumur Galian", "PDAM + Sumur Bor"]],
-            ["row_jalan", "Akses Jalan", ["Jalan Tanah", "Paving Block", "Aspal 1 Mobil", "Aspal 2 Mobil", "Aspal 2 Mobil + Trotoar", "Jalan Utama"]],
             ["sertifikat", "Sertifikat", ["SHM", "SHGB", "AJB", "PPJB", "Girik/Letter C", "HGB Induk", "Lainnya"]],
             ["keamanan", "Keamanan", ["Tidak ada", "Security 24 jam", "One Gate System", "CCTV", "Security + One Gate"]],
           ].map(([key, label, opts]) => (
@@ -371,7 +360,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
         <p className="text-sm font-bold text-red-900 mb-2">Status Operasional</p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {[["spanduk", "Spanduk Terpasang"], ["kunci", "Kunci Dititip"],
-          ["feed", "Feed Dibuat"], ["sudah_share", "Sudah Di-share"]].map(([k, l]) => (
+          ["feed", "Feed Dibuat"]].map(([k, l]) => (
             <label key={k} className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" className="toggle toggle-sm toggle-success"
                 checked={!!form[k]} onChange={e => set(k, e.target.checked)} />
@@ -416,12 +405,12 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
       <div>
         <p className="text-sm font-bold text-red-900 mb-2">Lokasi Google Maps</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="form-control">
+          <label className="hidden">
             <div className="label py-0.5"><span className={labelCls}>Latitude</span></div>
             <input className={inputCls} value={form.latitude}
               onChange={e => set("latitude", e.target.value)} placeholder="-0.5071" />
           </label>
-          <label className="form-control">
+          <label className="hidden">
             <div className="label py-0.5"><span className={labelCls}>Longitude</span></div>
             <input className={inputCls} value={form.longtitude}
               onChange={e => set("longtitude", e.target.value)} placeholder="101.4478" />
@@ -457,6 +446,7 @@ export default function Property() {
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewMode, setViewMode] = useState("grid");
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
@@ -496,7 +486,10 @@ export default function Property() {
   }, []);
 
   useEffect(() => {
-    loadVendorsAndMarketings();
+    const timer = window.setTimeout(() => {
+      void loadVendorsAndMarketings();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [loadVendorsAndMarketings]);
 
   // ─── Load data properti ──────────────────────────────────────
@@ -526,16 +519,23 @@ export default function Property() {
   }, [showToast]);
 
   useEffect(() => {
-    loadData(search, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax, filterJenis, filterStatusUnit, filterKota, filterLtMin, filterLtMax);
-  }, [loadData, search, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax, filterJenis, filterStatusUnit, filterKota, filterLtMin, filterLtMax]);
+    const timer = window.setTimeout(() => setDebouncedSearch(search), 350);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadData(debouncedSearch, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax, filterJenis, filterStatusUnit, filterKota, filterLtMin, filterLtMax);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadData, debouncedSearch, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax, filterJenis, filterStatusUnit, filterKota, filterLtMin, filterLtMax]);
 
   // ─── Bersihkan data form sebelum kirim ──────────────────────
   function cleanFormData(formData) {
     const clean = { ...formData };
     const numberFields = [
       'harga_jual', 'harga_sewa', 'luas_tanah', 'luas_bangunan',
-      'kamar_tidur', 'kamar_mandi', 'jumlah_unit', 'jumlah_kapling',
-      'latitude', 'longtitude'
+      'kamar_tidur', 'kamar_mandi'
     ];
     numberFields.forEach(field => {
       if (clean[field] === '' || clean[field] === null || clean[field] === undefined) {
@@ -559,7 +559,6 @@ export default function Property() {
         spanduk:     formData.spanduk     ? "1" : "0",
         kunci:       formData.kunci       ? "1" : "0",
         feed:        formData.feed        ? "1" : "0",
-        sudah_share: formData.sudah_share ? "1" : "0",
       };
       // Normalize numeric/empty fields to null or numbers
       const payload = cleanFormData(processedData);
@@ -581,7 +580,7 @@ export default function Property() {
 
       setShowForm(false);
       setEditItem(null);
-      await loadData(search, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax, filterJenis, filterStatusUnit, filterKota, filterLtMin, filterLtMax);
+      await loadData(debouncedSearch, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax, filterJenis, filterStatusUnit, filterKota, filterLtMin, filterLtMax);
     } catch (err) {
       showToast(err.response?.data?.message || "Gagal menyimpan properti", "error");
     } finally {
@@ -603,7 +602,7 @@ export default function Property() {
       showToast("Properti berhasil dihapus");
       setDeleteId(null);
       document.getElementById("delete-modal").close();
-      await loadData(search, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax, filterJenis, filterStatusUnit, filterKota, filterLtMin, filterLtMax);
+      await loadData(debouncedSearch, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax, filterJenis, filterStatusUnit, filterKota, filterLtMin, filterLtMax);
     } catch {
       showToast("Gagal menghapus properti", "error");
     }

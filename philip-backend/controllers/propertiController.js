@@ -38,6 +38,32 @@ const allowedPropertyFields = [
   'spanduk', 'kunci', 'feed', 'sudah_share', 'listed_by', 'id_vendor'
 ];
 
+// Vendor dapat diketik langsung di form. Nama yang sudah ada dipakai ulang;
+// nama baru dibuat otomatis dalam transaksi yang sama dengan properti.
+const resolveVendorId = async (db, data, existingVendorId = null) => {
+  const namaVendor = String(data.nama_vendor || "").trim();
+  const nomorHp = String(data.vendor_hp || data.no_hp_vendor || "").trim();
+  if (!namaVendor) return existingVendorId || null;
+  if (!nomorHp) {
+    const error = new Error("Nomor HP vendor wajib diisi");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const [existing] = await db.query(
+    "SELECT id_vendor FROM vendor WHERE LOWER(TRIM(nama_vendor)) = LOWER(?) LIMIT 1",
+    [namaVendor]
+  );
+  if (existing.length) return existing[0].id_vendor;
+
+  const idVendor = crypto.randomUUID();
+  await db.query(
+    "INSERT INTO vendor (id_vendor, nama_vendor, no_hp) VALUES (?, ?, ?)",
+    [idVendor, namaVendor, nomorHp || null]
+  );
+  return idVendor;
+};
+
 // ─── Upload ──────────────────────────────────────────────────────
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
@@ -66,7 +92,7 @@ exports.getAll = async (req, res) => {
         tp.kategori, tp.subkategori, tp.jumlah_unit,
         fp.url_foto AS cover_foto,
         v.nama_vendor, v.no_hp AS vendor_hp,
-        u.nama AS listed_by_nama
+        u.nama AS listed_by_nama, u.no_hp AS listed_by_hp
       FROM properti p
       LEFT JOIN tipe_properti tp ON tp.id_properti = p.id_properti
       LEFT JOIN foto_properti fp ON fp.id_properti = p.id_properti AND fp.is_cover = 1
@@ -191,6 +217,36 @@ exports.create = async (req, res) => {
       }
     }
 
+    const requiredFields = [
+      ["no_folder", "Nomor folder"],
+      ["tanggal_listing", "Tanggal listing"],
+      ["nama_jalan", "Alamat properti"],
+      ["kota", "Kota"],
+      ["luas_tanah", "Luas tanah"],
+      ["listed_by", "Marketing listing"],
+    ];
+    const missingField = requiredFields.find(([field]) => !String(propertiData[field] || "").trim());
+    if (missingField) {
+      const error = new Error(`${missingField[1]} wajib diisi`);
+      error.statusCode = 400;
+      throw error;
+    }
+    if (!["dijual", "disewa", "dijual_dan_disewa"].includes(propertiData.jenis_penawaran)) {
+      const error = new Error("Jenis penawaran tidak valid");
+      error.statusCode = 400;
+      throw error;
+    }
+    if (["dijual", "dijual_dan_disewa"].includes(propertiData.jenis_penawaran) && !propertiData.harga_jual) {
+      const error = new Error("Harga jual wajib diisi untuk properti yang dijual");
+      error.statusCode = 400;
+      throw error;
+    }
+    if (["disewa", "dijual_dan_disewa"].includes(propertiData.jenis_penawaran) && !propertiData.harga_sewa) {
+      const error = new Error("Harga sewa wajib diisi untuk properti yang disewakan");
+      error.statusCode = 400;
+      throw error;
+    }
+
     // Defensive: normalize numeric fields to valid SQL values before insert
     const numericFields = ['harga_jual', 'harga_sewa', 'luas_tanah', 'luas_bangunan',
       'kamar_tidur', 'kamar_mandi', 'latitude', 'longtitude'];
@@ -216,7 +272,12 @@ exports.create = async (req, res) => {
     }
 
     propertiData.id_properti = id;
-    propertiData.id_vendor   = propertiData.id_vendor || null;
+    propertiData.id_vendor   = await resolveVendorId(conn, req.body, propertiData.id_vendor);
+    if (!propertiData.id_vendor) {
+      const error = new Error("Nama vendor wajib diisi");
+      error.statusCode = 400;
+      throw error;
+    }
     propertiData.listed_by   = propertiData.listed_by || null;
     propertiData.kota        = propertiData.kota || "";
     propertiData.nama_jalan  = propertiData.nama_jalan || "";
@@ -268,7 +329,7 @@ exports.create = async (req, res) => {
   } catch (err) {
     await conn.rollback();
     console.error('ERROR in propertiController.create:', err && err.stack ? err.stack : err);
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   } finally { conn.release(); }
 };
 
@@ -286,6 +347,11 @@ exports.update = async (req, res) => {
       if (req.body[key] !== undefined) {
         updateData[key] = req.body[key];
       }
+    }
+
+    if (req.body.nama_vendor !== undefined) {
+      updateData.id_vendor = await resolveVendorId(pool, req.body, updateData.id_vendor);
+      if (!updateData.id_vendor) return res.status(400).json({ message: "Nama vendor wajib diisi" });
     }
 
     const numericFields = ['harga_jual', 'harga_sewa', 'luas_tanah', 'luas_bangunan',
@@ -400,6 +466,9 @@ exports.getShareText = async (req, res) => {
       `📜 Sertifikat: ${p.sertifikat || "-"}`,
       `🏙 ${p.kota}`,
       p.gmaps_url ? `📌 Maps: ${p.gmaps_url}` : null,
+      "",
+      "Untuk informasi dan jadwal survei:",
+      p.listed_by_nama ? "Marketing: " + p.listed_by_nama + (p.listed_by_hp ? " (" + p.listed_by_hp + ")" : "") : "Hubungi Philip Real Estate",
     ].filter(Boolean).join("\n");
 
     res.json({ shareText: text, waLink: `https://wa.me/?text=${encodeURIComponent(text)}` });

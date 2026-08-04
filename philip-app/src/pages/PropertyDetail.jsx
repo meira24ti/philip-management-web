@@ -313,10 +313,8 @@ export default function PropertyDetail() {
                   { label: "Luas Bangunan", value: p.luas_bangunan ? `${p.luas_bangunan} m²` : null },
                   { label: "Kamar Tidur", value: p.kamar_tidur ? `${p.kamar_tidur} kamar` : null },
                   { label: "Kamar Mandi", value: p.kamar_mandi ? `${p.kamar_mandi} kamar` : null },
-                  { label: "Carport", value: p.carport || null },
                   { label: "Daya Listrik", value: p.daya_listrik || null },
                   { label: "Sumber Air", value: p.sumber_air || null },
-                  { label: "Akses Jalan", value: p.row_jalan || null },
                   { label: "Sertifikat", value: p.sertifikat || null },
                   { label: "Keamanan", value: p.keamanan || null },
                 ].filter(s => s.value).map(s => (
@@ -394,7 +392,6 @@ export default function PropertyDetail() {
                 <div><p className="text-gray-400">No. Folder</p><p className="font-bold text-gray-700">{p.no_folder || "-"}</p></div>
                 <div><p className="text-gray-400">Tgl Listing</p><p className="font-bold text-gray-700">{p.tanggal_listing}</p></div>
                 <div><p className="text-gray-400">Listing oleh</p><p className="font-bold text-gray-700">{p.listed_by_nama || "-"}</p></div>
-                <div><p className="text-gray-400">Jumlah Unit</p><p className="font-bold text-gray-700">{p.jumlah_unit || 1} unit</p></div>
               </div>
             </div>
           </div>
@@ -420,7 +417,6 @@ export default function PropertyDetail() {
                 { label: "Spanduk terpasang", val: p.spanduk },
                 { label: "Kunci dititip", val: p.kunci },
                 { label: "Feed dibuat", val: p.feed },
-                { label: "Sudah di-share", val: p.sudah_share },
               ].map(item => (
                 <div key={item.label} className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">{item.label}</span>

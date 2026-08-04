@@ -267,9 +267,9 @@ export default function Staff() {
   // ─── Stats ──────────────────────────────────────────────
   const stats = useMemo(() => ({
     total: staffData.length,
+    active: staffData.filter((s) => Boolean(s.is_active)).length,
+    inactive: staffData.filter((s) => !s.is_active).length,
     marketing: staffData.filter((s) => s.role === "marketing").length,
-    admin: staffData.filter((s) => s.role === "admin").length,
-    direktur: staffData.filter((s) => s.role === "direktur").length,
   }), [staffData]);
 
   // ─── Filtering ──────────────────────────────────────────
@@ -404,9 +404,9 @@ export default function Staff() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           { label: "Total Staff", value: stats.total, bg: "bg-red-50", text: "text-red-800" },
+          { label: "Staff Aktif", value: stats.active, bg: "bg-green-50", text: "text-green-700" },
+          { label: "Staff Nonaktif", value: stats.inactive, bg: "bg-gray-100", text: "text-gray-600" },
           { label: "Total Marketing", value: stats.marketing, bg: "bg-blue-50", text: "text-blue-700" },
-          { label: "Total Admin", value: stats.admin, bg: "bg-rose-50", text: "text-rose-800" },
-          { label: "Total Direktur", value: stats.direktur, bg: "bg-amber-50", text: "text-amber-700" },
         ].map((stat) => (
           <div key={stat.label} className={`${stat.bg} rounded-2xl border border-white p-4 shadow-sm`}>
             <p className={`text-2xl font-bold ${stat.text}`}>{stat.value}</p>
