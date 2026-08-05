@@ -5,6 +5,7 @@ const path = require("path");
 require("dotenv").config();
 
 const pool = require("./config/db"); // <-- Tambahan
+const { runMigrations } = require("./migrations/runMigrations");
 
 const authRoutes = require("./routes/authRoutes");
 const propertiRoutes = require("./routes/propertiRoutes");
@@ -149,6 +150,19 @@ app.use((err, req, res, next) => {
 // ===============================
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server berjalan di port ${PORT}`);
-});
+const startServer = async () => {
+  try {
+    // The migration is idempotent and completes before the API accepts traffic,
+    // so every environment supports the property type values exposed by the UI.
+    await runMigrations(pool);
+    app.listen(PORT, () => {
+      console.log(`Server berjalan di port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Gagal menyiapkan skema database:", error.message);
+    await pool.end();
+    process.exitCode = 1;
+  }
+};
+
+void startServer();

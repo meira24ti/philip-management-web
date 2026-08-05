@@ -7,6 +7,13 @@ import { propertiService } from "../services/propertiService";
 import { getImageUrl } from "../utils/imageUrl";
 import { getOfferLabel } from "../utils/propertyLabels";
 import {
+  PROPERTY_TYPE_OPTIONS,
+  getPropertySubtypeLabel,
+  getPropertyTypeLabel,
+  isRumahCluster,
+  normalizePropertyType,
+} from "../utils/propertyTypes";
+import {
   HiOutlinePlus, HiOutlineEye, HiOutlineShare, HiOutlinePencil,
   HiOutlineTrash, HiSearch, HiX,
   HiOutlineViewGrid, HiOutlineViewList, HiOutlineLocationMarker, HiTag,
@@ -20,24 +27,8 @@ const ROLE_CONFIG = {
   direktur: { canAdd: false, canEdit: false, canDelete: false, canShare: false },
 };
 
-const isRumahCluster = (kategori, subkategori = "") =>
-  String(kategori || "").toLowerCase() === "rumah_cluster" ||
-  (String(kategori || "").toLowerCase() === "rumah" && /^cluster(?:\s*[-|:]\s*)?/i.test(String(subkategori || "")));
-
-const subkategoriLabel = (subkategori = "") =>
-  String(subkategori).replace(/^cluster(?:\s*[-|:]\s*)?/i, "").trim();
-
-const kategoriLabel = (kategori, subkategori = "") => {
-  if (isRumahCluster(kategori, subkategori)) return "Rumah Cluster";
-  return ({
-  rumah: "Rumah",
-  rumah_cluster: "Rumah Cluster",
-  "rumah cluster": "Rumah Cluster",
-  rumah_subsidi: "Rumah Subsidi",
-  "rumah subsidi": "Rumah Subsidi",
-  kombinasi: "Kombinasi",
-  }[String(kategori || "").toLowerCase()] || kategori || "-");
-};
+const subkategoriLabel = getPropertySubtypeLabel;
+const kategoriLabel = getPropertyTypeLabel;
 
 const unitClass = {
   tersedia: "badge-success",
@@ -78,7 +69,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
     kunci: false,
     feed: false,
     status_unit: "tersedia",
-    kategori: "Rumah",
+    kategori: "rumah",
     subkategori: "",
     id_vendor: "",
     nama_vendor: "",
@@ -90,7 +81,9 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
   const [form, setForm] = useState(() => ({
     ...getDefaultForm(),
     ...(initial || {}),
-    kategori: isRumahCluster(initial?.kategori, initial?.subkategori) ? "Rumah Cluster" : (initial?.kategori || "Rumah"),
+    kategori: isRumahCluster(initial?.kategori, initial?.subkategori)
+      ? "rumah_cluster"
+      : (normalizePropertyType(initial?.kategori) || "rumah"),
     subkategori: subkategoriLabel(initial?.subkategori),
     tanggal_listing: initial?.tanggal_listing ? String(initial.tanggal_listing).slice(0, 10) : "",
   }));
@@ -137,8 +130,9 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
             <div className="label py-0.5"><span className={labelCls}>Kategori *</span></div>
             <select className={selectCls} value={form.kategori}
               onChange={e => set("kategori", e.target.value)} required>
-              {["Rumah", "Rumah Cluster", "Ruko", "Tanah", "Gudang", "Villa", "Rumah Subsidi", "Kios", "Kombinasi"]
-                .map(k => <option key={k}>{k}</option>)}
+              {PROPERTY_TYPE_OPTIONS.map(({ value, label }) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
             </select>
           </label>
           <label className="form-control">
@@ -533,7 +527,7 @@ export default function Property() {
       
       const data = await propertiService.getAll(params);
       setProperties(
-        String(kat).toLowerCase() === "rumah cluster"
+        kat === "rumah_cluster"
           ? data.filter((item) => isRumahCluster(item.kategori, item.subkategori))
           : data
       );
@@ -731,15 +725,9 @@ export default function Property() {
           onChange={e => setFilterKategori(e.target.value)}
         >
           <option value="">Semua Kategori</option>
-          <option value="Rumah">Rumah</option>
-          <option value="Rumah Cluster">Rumah Cluster</option>
-          <option value="Ruko">Ruko</option>
-          <option value="Tanah">Tanah</option>
-          <option value="Gudang">Gudang</option>
-          <option value="Villa">Villa</option>
-          <option value="Rumah Subsidi">Rumah Subsidi</option>
-          <option value="Kios">Kios</option>
-          <option value="Kombinasi">Kombinasi</option>
+          {PROPERTY_TYPE_OPTIONS.map(({ value, label }) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
         </select>
 
         <select className="select select-bordered select-sm w-full rounded-xl border-red-100 bg-white sm:w-auto" value={filterJenis} onChange={e => setFilterJenis(e.target.value)}>

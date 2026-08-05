@@ -6,6 +6,12 @@ const fs     = require("fs").promises;
 const crypto = require("crypto");
 const { normalizeDecimalValue, sanitizeForColumnLimits } = require("../utils/numberUtils");
 const { imageFileFilter, safeImageExtension } = require("../utils/uploadValidation");
+const {
+  normalizeKategori,
+  isLegacyRumahCluster,
+  cleanClusterSubkategori,
+  kategoriLabel,
+} = require("../utils/propertyCategories");
 
 // ─── Helper ──────────────────────────────────────────────────────
 const toSqlBoolean = (value) => {
@@ -14,24 +20,17 @@ const toSqlBoolean = (value) => {
   return null;
 };
 
-const normalizeKategori = (value) => {
-  const normalized = String(value || "").trim().toLowerCase();
-  const mapping = {
-    rumah: "rumah",
-    "rumah cluster": "rumah_cluster",
-    "rumah-cluster": "rumah_cluster",
-    rumah_cluster: "rumah_cluster",
-    ruko: "ruko",
-    tanah: "tanah",
-    gudang: "gudang",
-    villa: "villa",
-    "rumah subsidi": "rumah_subsidi",
-    "rumah-subsidi": "rumah_subsidi",
-    rumah_subsidi: "rumah_subsidi",
-    kios: "kios",
-    kombinasi: "kombinasi",
+const normalizeTypeData = (kategori, subkategori = "") => {
+  const normalizedKategori = normalizeKategori(kategori);
+  if (!normalizedKategori) return null;
+
+  // Backwards compatibility for records submitted by older clients that used
+  // Rumah + "Cluster - ..." instead of the dedicated Rumah Cluster category.
+  const legacyCluster = isLegacyRumahCluster(kategori, subkategori);
+  return {
+    kategori: legacyCluster ? "rumah_cluster" : normalizedKategori,
+    subkategori: legacyCluster ? cleanClusterSubkategori(subkategori) : (subkategori || ""),
   };
-  return mapping[normalized] || null;
 };
 
 const allowedPropertyFields = [
@@ -107,11 +106,29 @@ exports.getAll = async (req, res) => {
     const params = [];
 
     if (search) {
-      sql += " AND (p.no_folder LIKE ? OR p.nama_jalan LIKE ? OR p.area_kecamatan LIKE ? OR p.kota LIKE ? OR tp.kategori LIKE ? OR v.nama_vendor LIKE ?)";
+      sql += " AND (p.no_folder LIKE ? OR p.nama_jalan LIKE ? OR p.area_kecamatan LIKE ? OR p.kota LIKE ? OR tp.kategori LIKE ? OR tp.subkategori LIKE ? OR v.nama_vendor LIKE ?";
       const s = `%${search}%`;
-      params.push(s, s, s, s, s, s);
+      params.push(s, s, s, s, s, s, s);
+      const searchedKategori = normalizeKategori(search);
+      if (searchedKategori) {
+        sql += " OR tp.kategori = ?";
+        params.push(searchedKategori);
+      }
+      sql += ")";
     }
-    if (kategori)    { sql += " AND tp.kategori = ?";       params.push(normalizeKategori(kategori)); }
+    if (kategori) {
+      const normalizedKategori = normalizeKategori(kategori);
+      if (!normalizedKategori) {
+        return res.status(400).json({ message: "Kategori properti tidak valid" });
+      }
+      if (normalizedKategori === "rumah_cluster") {
+        // Include legacy values until the one-time migration has run.
+        sql += " AND (tp.kategori = ? OR (tp.kategori = 'rumah' AND LOWER(TRIM(COALESCE(tp.subkategori, ''))) REGEXP '^cluster([[:space:]]*[-|:])?'))";
+      } else {
+        sql += " AND tp.kategori = ?";
+      }
+      params.push(normalizedKategori);
+    }
     if (jenis)       { sql += " AND p.jenis_penawaran = ?"; params.push(jenis); }
     if (kota)        { sql += " AND p.kota = ?";            params.push(kota); }
     if (statusUnit)  { sql += " AND p.status_unit = ?";     params.push(statusUnit); }
@@ -214,8 +231,8 @@ exports.create = async (req, res) => {
 
     const id = crypto.randomUUID();
     const { kategori, subkategori, jumlah_unit, jumlah_kapling } = req.body;
-    const normalizedKategori = normalizeKategori(kategori);
-    if (!normalizedKategori) {
+    const typeData = normalizeTypeData(kategori, subkategori);
+    if (!typeData) {
       const error = new Error("Kategori properti tidak valid");
       error.statusCode = 400;
       throw error;
@@ -306,8 +323,8 @@ exports.create = async (req, res) => {
     await conn.query("INSERT INTO tipe_properti SET ?", [{
       id_tipeproperti: crypto.randomUUID(),
       id_properti:     id,
-      kategori: normalizedKategori,
-      subkategori: subkategori || "",
+      kategori: typeData.kategori,
+      subkategori: typeData.subkategori,
       jumlah_unit: jumlah_unit || 1,
       jumlah_kapling: jumlah_kapling || null,
     }]);
@@ -346,11 +363,15 @@ exports.create = async (req, res) => {
 
 // ─── PUT /api/properti/:id ───────────────────────────────────
 exports.update = async (req, res) => {
+  const conn = await pool.getConnection();
   try {
+    await conn.beginTransaction();
     const propertiId = req.params.id;
     if (!propertiId || propertiId === 'undefined' || propertiId === 'null') {
       console.error('❌ ID properti tidak valid:', propertiId);
-      return res.status(400).json({ message: "ID properti tidak valid" });
+      const error = new Error("ID properti tidak valid");
+      error.statusCode = 400;
+      throw error;
     }
 
     const updateData = {};
@@ -360,9 +381,41 @@ exports.update = async (req, res) => {
       }
     }
 
+    const { kategori, subkategori, jumlah_unit, jumlah_kapling } = req.body;
+    const hasTypeUpdate = [kategori, subkategori, jumlah_unit, jumlah_kapling]
+      .some((value) => value !== undefined);
+    let existingType = null;
+    let normalizedType = null;
+
+    if (hasTypeUpdate) {
+      const [typeRows] = await conn.query(
+        "SELECT id_tipeproperti, kategori, subkategori FROM tipe_properti WHERE id_properti = ? ORDER BY id_tipeproperti ASC LIMIT 1",
+        [propertiId]
+      );
+      existingType = typeRows[0] || null;
+      const nextKategori = kategori !== undefined ? kategori : existingType?.kategori;
+      const nextSubkategori = subkategori !== undefined ? subkategori : existingType?.subkategori;
+      normalizedType = normalizeTypeData(nextKategori, nextSubkategori);
+      if (!normalizedType) {
+        const error = new Error("Kategori properti tidak valid");
+        error.statusCode = 400;
+        throw error;
+      }
+    }
+
     if (req.body.nama_vendor !== undefined) {
-      updateData.id_vendor = await resolveVendorId(pool, req.body, updateData.id_vendor);
-      if (!updateData.id_vendor) return res.status(400).json({ message: "Nama vendor wajib diisi" });
+      updateData.id_vendor = await resolveVendorId(conn, req.body, updateData.id_vendor);
+      if (!updateData.id_vendor) {
+        const error = new Error("Nama vendor wajib diisi");
+        error.statusCode = 400;
+        throw error;
+      }
+    }
+
+    if (updateData.jenis_penawaran !== undefined && !["dijual", "disewa", "dijual_dan_disewa"].includes(updateData.jenis_penawaran)) {
+      const error = new Error("Jenis penawaran tidak valid");
+      error.statusCode = 400;
+      throw error;
     }
 
     const numericFields = ['harga_jual', 'harga_sewa', 'luas_tanah', 'luas_bangunan',
@@ -390,7 +443,7 @@ exports.update = async (req, res) => {
 
     updateData.updated_at = new Date();
 
-    const [columns] = await pool.query("SHOW COLUMNS FROM properti");
+    const [columns] = await conn.query("SHOW COLUMNS FROM properti");
     const columnLimits = columns.reduce((acc, column) => {
       const match = column.Type.match(/varchar\((\d+)\)/i);
       if (match) acc[column.Field] = Number(match[1]);
@@ -398,29 +451,26 @@ exports.update = async (req, res) => {
     }, {});
     const safeUpdateData = sanitizeForColumnLimits(updateData, columnLimits);
 
-    const [result] = await pool.query(
+    const [result] = await conn.query(
       "UPDATE properti SET ? WHERE id_properti = ?",
       [safeUpdateData, propertiId]
     );
     if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "Properti tidak ditemukan" });
+      const error = new Error("Properti tidak ditemukan");
+      error.statusCode = 404;
+      throw error;
     }
 
-    const { kategori, subkategori, jumlah_unit, jumlah_kapling } = req.body;
-    if (kategori !== undefined || subkategori !== undefined || jumlah_unit !== undefined || jumlah_kapling !== undefined) {
+    if (hasTypeUpdate && existingType) {
       const tipeUpdates = [];
       const tipeParams = [];
-      if (kategori !== undefined) {
-        const normalizedKategori = normalizeKategori(kategori);
-        if (!normalizedKategori) {
-          return res.status(400).json({ message: "Kategori properti tidak valid" });
-        }
+      if (normalizedType.kategori !== existingType.kategori) {
         tipeUpdates.push("kategori=?");
-        tipeParams.push(normalizedKategori);
+        tipeParams.push(normalizedType.kategori);
       }
-      if (subkategori !== undefined) {
+      if (normalizedType.subkategori !== (existingType.subkategori || "")) {
         tipeUpdates.push("subkategori=?");
-        tipeParams.push(subkategori || "");
+        tipeParams.push(normalizedType.subkategori);
       }
       if (jumlah_unit !== undefined) {
         tipeUpdates.push("jumlah_unit=?");
@@ -430,23 +480,36 @@ exports.update = async (req, res) => {
         tipeUpdates.push("jumlah_kapling=?");
         tipeParams.push(jumlah_kapling || null);
       }
-      tipeParams.push(propertiId);
-      await pool.query(
-        `UPDATE tipe_properti SET ${tipeUpdates.join(", ")} WHERE id_properti=?`,
-        tipeParams
-      );
+      if (tipeUpdates.length) {
+        tipeParams.push(existingType.id_tipeproperti);
+        await conn.query(
+          `UPDATE tipe_properti SET ${tipeUpdates.join(", ")} WHERE id_tipeproperti=?`,
+          tipeParams
+        );
+      }
+    } else if (hasTypeUpdate) {
+      await conn.query("INSERT INTO tipe_properti SET ?", [{
+        id_tipeproperti: crypto.randomUUID(),
+        id_properti: propertiId,
+        kategori: normalizedType.kategori,
+        subkategori: normalizedType.subkategori,
+        jumlah_unit: jumlah_unit || 1,
+        jumlah_kapling: jumlah_kapling || null,
+      }]);
     }
 
-    await pool.query(
+    await conn.query(
       "INSERT INTO log_aktivitas (id_log, id_user, id_properti, aksi, detail) VALUES (?,?,?,?,?)",
       [crypto.randomUUID(), req.user.id, propertiId, "edit", "Data properti diperbarui"]
     );
 
+    await conn.commit();
     res.json({ message: "Properti berhasil diperbarui" });
   } catch (err) {
+    await conn.rollback();
     console.error(err);
-    res.status(500).json({ message: "Server error" });
-  }
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
+  } finally { conn.release(); }
 };
 
 // ─── DELETE /api/properti/:id ────────────────────────────────
@@ -496,7 +559,7 @@ exports.getShareText = async (req, res) => {
     }[p.jenis_penawaran] || "PENAWARAN";
 
     const text = [
-      `*${(p.kategori||"PROPERTI").toUpperCase()} ${offerLabel}*`,
+      `*${kategoriLabel(p.kategori, p.subkategori).toUpperCase()} ${offerLabel}*`,
       `📍 ${p.nama_jalan}, ${p.kota}`,
       fmt(p.harga_jual)  ? `💰 Harga Jual: ${fmt(p.harga_jual)}` : null,
       fmt(p.harga_sewa)  ? `🏠 Sewa: ${fmt(p.harga_sewa)}/thn`   : null,

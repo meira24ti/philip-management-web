@@ -39,9 +39,21 @@ exports.generate = async (req, res) => {
   let browser;
   try {
     const validTypes = new Set(["penjualan", "stok", "statistik"]);
-    const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+    const validDate = (value) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return false;
+      const parsed = new Date(`${value}T00:00:00Z`);
+      return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+    };
     if (!validTypes.has(tipe) || !validDate(periodeStart) || !validDate(periodeEnd) || periodeStart > periodeEnd) {
       const error = new Error("Tipe laporan atau periode tidak valid");
+      error.statusCode = 400;
+      throw error;
+    }
+    const periodDays = Math.floor(
+      (new Date(`${periodeEnd}T00:00:00Z`) - new Date(`${periodeStart}T00:00:00Z`)) / 86400000
+    ) + 1;
+    if (periodDays > 3660) {
+      const error = new Error("Periode laporan maksimal 10 tahun");
       error.statusCode = 400;
       throw error;
     }
@@ -55,45 +67,72 @@ exports.generate = async (req, res) => {
         JOIN properti p ON p.id_properti = t.id_properti
         LEFT JOIN tipe_properti tp ON tp.id_properti = t.id_properti
         LEFT JOIN user u ON u.id_user = t.dicatat_oleh
-        WHERE t.tanggal_transaksi BETWEEN ? AND ?
+        WHERE t.tanggal_transaksi >= ?
+          AND t.tanggal_transaksi < DATE_ADD(?, INTERVAL 1 DAY)
         ORDER BY t.tanggal_transaksi DESC`,
         [periodeStart, periodeEnd]);
       data = { transaksi, totalKomisi: transaksi.reduce((s, t) => s + Number(t.komisi_nominal || 0), 0) };
 
     } else if (tipe === "stok") {
       const [[byStatus]] = await pool.query(`
-        SELECT SUM(status_unit='tersedia') AS tersedia,
-               SUM(status_unit='terjual') AS terjual,
-               SUM(status_unit='tersewa') AS tersewa,
-               SUM(status_unit='negosiasi') AS negosiasi,
-               COUNT(*) AS total FROM properti`);
-      const [byTipe] = await pool.query(
-        "SELECT kategori, COUNT(*) AS jumlah FROM tipe_properti GROUP BY kategori ORDER BY jumlah DESC"
-      );
-      const [byPenawaran] = await pool.query(
-        "SELECT COALESCE(jenis_penawaran, 'lainnya') AS jenis_penawaran, COUNT(*) AS jumlah FROM properti GROUP BY jenis_penawaran ORDER BY jumlah DESC"
-      );
+        SELECT COALESCE(SUM(p.status_unit='tersedia'), 0) AS tersedia,
+               COALESCE(SUM(p.status_unit='terjual'), 0) AS terjual,
+               COALESCE(SUM(p.status_unit='tersewa'), 0) AS tersewa,
+               COALESCE(SUM(p.status_unit='negosiasi'), 0) AS negosiasi,
+               COUNT(*) AS total
+        FROM properti p
+        WHERE p.tanggal_listing >= ?
+          AND p.tanggal_listing < DATE_ADD(?, INTERVAL 1 DAY)`,
+        [periodeStart, periodeEnd]);
+      const [byTipe] = await pool.query(`
+        SELECT COALESCE(NULLIF(tp.kategori, ''), 'lainnya') AS kategori,
+               COUNT(DISTINCT p.id_properti) AS jumlah
+        FROM properti p
+        LEFT JOIN tipe_properti tp ON tp.id_properti = p.id_properti
+        WHERE p.tanggal_listing >= ?
+          AND p.tanggal_listing < DATE_ADD(?, INTERVAL 1 DAY)
+        GROUP BY COALESCE(NULLIF(tp.kategori, ''), 'lainnya')
+        ORDER BY jumlah DESC, kategori ASC`,
+        [periodeStart, periodeEnd]);
+      const [byPenawaran] = await pool.query(`
+        SELECT COALESCE(NULLIF(p.jenis_penawaran, ''), 'lainnya') AS jenis_penawaran,
+               COUNT(*) AS jumlah
+        FROM properti p
+        WHERE p.tanggal_listing >= ?
+          AND p.tanggal_listing < DATE_ADD(?, INTERVAL 1 DAY)
+        GROUP BY COALESCE(NULLIF(p.jenis_penawaran, ''), 'lainnya')
+        ORDER BY jumlah DESC, jenis_penawaran ASC`,
+        [periodeStart, periodeEnd]);
       data = { byStatus, byTipe, byPenawaran };
 
     } else {
       const [[byStatus]] = await pool.query(`
         SELECT
           COUNT(*) AS total_listing,
-          SUM(status_unit='tersedia') AS tersedia,
-          SUM(status_unit='terjual') AS terjual,
-          SUM(status_unit='tersewa') AS tersewa,
-          SUM(status_unit='negosiasi') AS negosiasi
-        FROM properti`);
+          COALESCE(SUM(p.status_unit='tersedia'), 0) AS tersedia,
+          COALESCE(SUM(p.status_unit='terjual'), 0) AS terjual,
+          COALESCE(SUM(p.status_unit='tersewa'), 0) AS tersewa,
+          COALESCE(SUM(p.status_unit='negosiasi'), 0) AS negosiasi
+        FROM properti p
+        WHERE p.tanggal_listing >= ?
+          AND p.tanggal_listing < DATE_ADD(?, INTERVAL 1 DAY)`,
+        [periodeStart, periodeEnd]);
       const [byTipe] = await pool.query(`
-        SELECT COALESCE(kategori, 'Lainnya') AS kategori, COUNT(*) AS jumlah
-        FROM tipe_properti
-        GROUP BY kategori
-        ORDER BY jumlah DESC`);
+        SELECT COALESCE(NULLIF(tp.kategori, ''), 'lainnya') AS kategori,
+               COUNT(DISTINCT p.id_properti) AS jumlah
+        FROM properti p
+        LEFT JOIN tipe_properti tp ON tp.id_properti = p.id_properti
+        WHERE p.tanggal_listing >= ?
+          AND p.tanggal_listing < DATE_ADD(?, INTERVAL 1 DAY)
+        GROUP BY COALESCE(NULLIF(tp.kategori, ''), 'lainnya')
+        ORDER BY jumlah DESC, kategori ASC`,
+        [periodeStart, periodeEnd]);
       const [trenBulan] = await pool.query(`
         SELECT DATE_FORMAT(tanggal_transaksi,'%Y-%m') AS bulan,
                COUNT(*) AS total_transaksi, SUM(komisi_nominal) AS total_komisi
         FROM transaksi
-        WHERE tanggal_transaksi BETWEEN ? AND ?
+        WHERE tanggal_transaksi >= ?
+          AND tanggal_transaksi < DATE_ADD(?, INTERVAL 1 DAY)
         GROUP BY bulan ORDER BY bulan`,
         [periodeStart, periodeEnd]);
       const [[summary]] = await pool.query(`
@@ -104,12 +143,38 @@ exports.generate = async (req, res) => {
           SUM(harga_aktual) AS nilai_transaksi,
           SUM(komisi_nominal) AS total_komisi
         FROM transaksi
-        WHERE tanggal_transaksi BETWEEN ? AND ?`,
+        WHERE tanggal_transaksi >= ?
+          AND tanggal_transaksi < DATE_ADD(?, INTERVAL 1 DAY)`,
         [periodeStart, periodeEnd]);
-      const [byPenawaran] = await pool.query(
-        "SELECT COALESCE(jenis_penawaran, 'lainnya') AS jenis_penawaran, COUNT(*) AS jumlah FROM properti GROUP BY jenis_penawaran ORDER BY jumlah DESC"
-      );
-      data = { byStatus, byTipe, byPenawaran, trenBulan, summary };
+      const [byJenis] = await pool.query(`
+        SELECT jenis, COUNT(*) AS jumlah
+        FROM transaksi
+        WHERE tanggal_transaksi >= ?
+          AND tanggal_transaksi < DATE_ADD(?, INTERVAL 1 DAY)
+        GROUP BY jenis
+        ORDER BY jumlah DESC`,
+        [periodeStart, periodeEnd]);
+      const [byMarketing] = await pool.query(`
+        SELECT COALESCE(NULLIF(u.nama, ''), 'Belum ditetapkan') AS nama,
+               COUNT(*) AS jumlah
+        FROM transaksi t
+        LEFT JOIN user u ON u.id_user = t.dicatat_oleh
+        WHERE t.tanggal_transaksi >= ?
+          AND t.tanggal_transaksi < DATE_ADD(?, INTERVAL 1 DAY)
+        GROUP BY t.dicatat_oleh, u.nama
+        ORDER BY jumlah DESC, nama ASC
+        LIMIT 8`,
+        [periodeStart, periodeEnd]);
+      const [byPenawaran] = await pool.query(`
+        SELECT COALESCE(NULLIF(p.jenis_penawaran, ''), 'lainnya') AS jenis_penawaran,
+               COUNT(*) AS jumlah
+        FROM properti p
+        WHERE p.tanggal_listing >= ?
+          AND p.tanggal_listing < DATE_ADD(?, INTERVAL 1 DAY)
+        GROUP BY COALESCE(NULLIF(p.jenis_penawaran, ''), 'lainnya')
+        ORDER BY jumlah DESC, jenis_penawaran ASC`,
+        [periodeStart, periodeEnd]);
+      data = { byStatus, byTipe, byPenawaran, byJenis, byMarketing, trenBulan, summary };
     }
 
     const reportLabel = { penjualan: "Penjualan", stok: "Stok Properti", statistik: "Statistik" }[tipe] || tipe;

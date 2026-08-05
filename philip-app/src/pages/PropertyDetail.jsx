@@ -13,6 +13,7 @@ import { propertiService } from "../services/propertiService";
 import { generateFlyerPNG, downloadFlyer } from "../utils/generateFlyer";
 import { getImageUrl } from "../utils/imageUrl";
 import { getOfferLabel } from "../utils/propertyLabels";
+import { getPropertySubtypeLabel, getPropertyTypeLabel } from "../utils/propertyTypes";
 
 // ─── Konfigurasi role ──────────────────────────────────────────
 const ROLE_CONFIG = {
@@ -35,20 +36,8 @@ const unitLabel = {
   negosiasi: "Negosiasi"
 };
 
-const kategoriLabel = (kategori, subkategori = "") => {
-  if (String(kategori || "").toLowerCase() === "rumah" && /cluster/i.test(subkategori)) return "Rumah Cluster";
-  return ({
-  rumah: "Rumah",
-  rumah_cluster: "Rumah Cluster",
-  "rumah cluster": "Rumah Cluster",
-  rumah_subsidi: "Rumah Subsidi",
-  "rumah subsidi": "Rumah Subsidi",
-  kombinasi: "Kombinasi",
-  }[String(kategori || "").toLowerCase()] || kategori || "-");
-};
-
-const subkategoriLabel = (subkategori = "") =>
-  String(subkategori).replace(/^cluster(?:\s*[-|:]\s*)?/i, "").trim();
+const kategoriLabel = getPropertyTypeLabel;
+const subkategoriLabel = getPropertySubtypeLabel;
 
 // ─── KOMPONEN UTAMA ────────────────────────────────────────────
 export default function PropertyDetail() {

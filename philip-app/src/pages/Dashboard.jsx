@@ -4,22 +4,7 @@ import { HiChevronDown, HiHome, HiOutlineLocationMarker, HiSearch, HiTag, HiX } 
 import { BiFilterAlt } from "react-icons/bi";
 import { propertiService } from "../services/propertiService";
 import { getOfferBadgeClass, getOfferLabel } from "../utils/propertyLabels";
-
-const isRumahCluster = (kategori, subkategori = "") =>
-  String(kategori || "").toLowerCase() === "rumah_cluster" ||
-  (String(kategori || "").toLowerCase() === "rumah" && /^cluster(?:\s*[-|:]\s*)?/i.test(String(subkategori || "")));
-
-const kategoriLabel = (kategori, subkategori = "") => {
-  if (isRumahCluster(kategori, subkategori)) return "Rumah Cluster";
-  return ({
-  rumah: "Rumah",
-  rumah_cluster: "Rumah Cluster",
-  "rumah cluster": "Rumah Cluster",
-  rumah_subsidi: "Rumah Subsidi",
-  "rumah subsidi": "Rumah Subsidi",
-  kombinasi: "Kombinasi",
-  }[String(kategori || "").toLowerCase()] || kategori || "Properti");
-};
+import { getPropertyTypeLabel, isRumahCluster } from "../utils/propertyTypes";
 import { getImageUrl } from "../utils/imageUrl";
 
 const formatRupiah = (value) => value ? "Rp " + Number(value).toLocaleString("id-ID") : "Harga belum diisi";
@@ -40,7 +25,7 @@ function PropertyCard({ property }) {
         {property.no_folder && <span className="absolute right-2 top-2 rounded bg-black/30 px-1.5 py-0.5 font-mono text-[10px] text-white/80">{property.no_folder}</span>}
       </div>
       <div className="p-3">
-        <p className="mb-1 truncate text-[10px] font-bold uppercase tracking-wide text-red-800 sm:text-xs">{kategoriLabel(property.kategori, property.subkategori)}</p>
+        <p className="mb-1 truncate text-[10px] font-bold uppercase tracking-wide text-red-800 sm:text-xs">{getPropertyTypeLabel(property.kategori, property.subkategori)}</p>
         <div className="mb-1.5 flex items-start gap-1 text-red-400"><HiOutlineLocationMarker className="mt-0.5 shrink-0" size={14} /><span className="truncate text-xs font-medium leading-tight text-gray-600">{address || "-"}</span></div>
         <div className="flex items-center gap-1 text-red-500"><HiTag className="shrink-0" size={14} /><p className="truncate text-xs font-bold leading-tight text-red-900">{formatRupiah(property.harga_jual || property.harga_sewa)}</p></div>
         {property.harga_sewa && property.harga_jual && <p className="mt-0.5 text-[10px] font-semibold text-blue-600">Sewa: {formatRupiah(property.harga_sewa)}/tahun</p>}

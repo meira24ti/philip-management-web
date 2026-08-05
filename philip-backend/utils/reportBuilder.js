@@ -215,7 +215,7 @@ function normalizeStatus(byStatus) {
 function normalizeSimpleRows(rows, labels) {
   return (rows || [])
     .map(function (row) {
-      const rawLabel = row.label || row.kategori || row.jenis_penawaran || row.jenis || "lainnya";
+      const rawLabel = row.label || row.nama || row.kategori || row.jenis_penawaran || row.jenis || "lainnya";
       return {
         label: labelFor(labels || {}, rawLabel, "Lainnya"),
         jumlah: toNumber(row.jumlah),
@@ -265,6 +265,8 @@ function enrichReportData(tipe, originalData, dari, sampai) {
     data.summary.nilai_transaksi = toNumber(data.summary.nilai_transaksi);
     data.summary.total_komisi = toNumber(data.summary.total_komisi);
     data.trenBulan = fillMonthlyTrend(data.trenBulan, dari, sampai);
+    data.byJenis = normalizeSimpleRows(data.byJenis, TRANSACTION_LABELS);
+    data.byMarketing = normalizeSimpleRows(data.byMarketing, {});
   }
 
   return data;
@@ -562,7 +564,7 @@ function buildStokReport(data, dari, sampai) {
   const leadingType = topLabel(data.byTipe);
   const leadingOffer = topLabel(data.byPenawaran);
   const insights = [
-    total ? "Terdapat " + formatNumber(total) + " listing dalam snapshot stok saat ini." : "Belum ada listing pada snapshot stok.",
+    total ? "Terdapat " + formatNumber(total) + " listing yang terdaftar pada periode laporan." : "Belum ada listing yang terdaftar pada periode laporan.",
     total ? formatNumber(status.tersedia) + " unit (" + formatPercent(percentage(status.tersedia, total)) + ") masih tersedia untuk ditawarkan." : null,
     leadingType ? "Komposisi stok terbesar berasal dari tipe " + leadingType + "." : null,
     leadingOffer ? "Jenis penawaran terbanyak adalah " + leadingOffer + "." : null,
@@ -579,7 +581,7 @@ function buildStokReport(data, dari, sampai) {
 
   return [
     renderKpiGrid([
-      { label: "Total listing", value: formatNumber(total), note: "snapshot saat ini" },
+      { label: "Total listing", value: formatNumber(total), note: "terdaftar pada periode" },
       { label: "Tersedia", value: formatNumber(status.tersedia), tone: "tone-success", note: "siap ditawarkan" },
       { label: "Dalam negosiasi", value: formatNumber(status.negosiasi), tone: "tone-warning", note: "menunggu keputusan" },
       { label: "Terjual", value: formatNumber(status.terjual), tone: "tone-primary", note: "status unit" },
@@ -587,23 +589,23 @@ function buildStokReport(data, dari, sampai) {
     ]),
     renderInsightList("Kondisi stok", insights),
     "<div class='chart-grid'>",
-    renderDonut("Status unit", "Distribusi status listing saat laporan dibuat.", items),
-    renderDonut("Jenis penawaran", "Pilihan penawaran yang tersedia pada listing.", data.byPenawaran),
+    renderDonut("Status unit", "Status terkini untuk listing yang terdaftar pada periode laporan.", items),
+    renderDonut("Jenis penawaran", "Pilihan penawaran pada listing yang terdaftar dalam periode laporan.", data.byPenawaran),
     "</div>",
     renderSection(
       "Komposisi stok",
-      "Distribusi listing berdasarkan tipe properti.",
+      "Distribusi listing yang terdaftar pada periode laporan berdasarkan tipe properti.",
       renderHorizontalBars("Distribusi tipe properti", "", data.byTipe, function (value) { return formatNumber(value) + " unit"; })
     ),
     renderSection(
       "Ringkasan status unit",
-      "Snapshot status bersifat kondisi terkini untuk listing yang tersimpan di sistem.",
+      "Status mencerminkan kondisi terkini dari listing yang masuk pada periode laporan.",
       renderTable(["Status unit", "Jumlah", "Proporsi"], statusRows, "Belum ada data status unit."),
       "page-break-before"
     ),
     renderSection(
       "Rincian tipe dan penawaran",
-      "Perincian membantu menentukan fokus pemasaran dan ketersediaan stok.",
+      "Perincian membantu menentukan fokus pemasaran untuk listing yang terdaftar pada periode laporan.",
       "<div class='two-tables'>" +
         "<div><h3 class='table-title'>Menurut tipe properti</h3>" +
         renderTable(["Tipe", "Jumlah", "Proporsi"], typeRows, "Belum ada tipe properti.") + "</div>" +
@@ -620,17 +622,19 @@ function buildStatistikReport(data, dari, sampai) {
   const totalListing = status.total;
   const totalTransaction = toNumber(summary.total_transaksi);
   const leadingType = topLabel(data.byTipe);
+  const leadingMarketing = topLabel(data.byMarketing);
   const insights = [
     totalListing
       ? formatNumber(status.tersedia) + " dari " + formatNumber(totalListing) + " listing masih tersedia."
-      : "Belum ada listing pada snapshot sistem.",
+      : "Belum ada listing yang terdaftar pada periode laporan.",
     totalTransaction
       ? formatNumber(totalTransaction) + " transaksi menghasilkan nilai " + formatCurrency(summary.nilai_transaksi) + "."
       : "Belum ada transaksi pada periode yang dipilih.",
     toNumber(summary.total_komisi)
       ? "Total komisi yang tercatat adalah " + formatCurrency(summary.total_komisi) + "."
       : null,
-    leadingType ? "Tipe listing terbesar saat ini adalah " + leadingType + "." : null,
+    leadingType ? "Tipe listing terbesar pada periode laporan adalah " + leadingType + "." : null,
+    leadingMarketing ? "Pencatat transaksi terbanyak adalah " + leadingMarketing + "." : null,
   ];
   const monthlyRows = (data.trenBulan || []).map(function (item) {
     return "<tr>" +
@@ -645,7 +649,7 @@ function buildStatistikReport(data, dari, sampai) {
 
   return [
     renderKpiGrid([
-      { label: "Total listing", value: formatNumber(totalListing), note: "snapshot saat ini" },
+      { label: "Total listing", value: formatNumber(totalListing), note: "terdaftar pada periode" },
       { label: "Unit tersedia", value: formatNumber(status.tersedia), tone: "tone-success", note: "siap ditawarkan" },
       { label: "Transaksi periode", value: formatNumber(totalTransaction), tone: "tone-primary", note: formatDate(dari) + " - " + formatDate(sampai) },
       { label: "Nilai transaksi", value: formatCurrency(summary.nilai_transaksi), tone: "tone-primary", note: "akumulasi periode" },
@@ -653,8 +657,8 @@ function buildStatistikReport(data, dari, sampai) {
     ]),
     renderInsightList("Ikhtisar bisnis", insights),
     "<div class='chart-grid'>",
-    renderDonut("Status listing", "Distribusi status unit pada snapshot saat ini.", statusItems(status)),
-    renderDonut("Jenis penawaran", "Komposisi listing berdasarkan penawaran.", data.byPenawaran),
+    renderDonut("Status listing", "Status terkini untuk listing yang terdaftar pada periode laporan.", statusItems(status)),
+    renderDonut("Komposisi transaksi", "Perbandingan penjualan dan penyewaan pada periode laporan.", data.byJenis),
     "</div>",
     renderSection(
       "Diagram tren transaksi",
@@ -665,8 +669,13 @@ function buildStatistikReport(data, dari, sampai) {
     ),
     renderSection(
       "Distribusi tipe properti",
-      "Komposisi listing untuk membantu prioritas pemasaran.",
+      "Komposisi listing yang terdaftar pada periode laporan untuk membantu prioritas pemasaran.",
       renderHorizontalBars("Tipe properti", "", data.byTipe, function (value) { return formatNumber(value) + " unit"; })
+    ),
+    renderSection(
+      "Kinerja pencatatan transaksi",
+      "Jumlah transaksi yang dicatat oleh masing-masing pengguna pada periode laporan.",
+      renderHorizontalBars("Kontributor transaksi", "", data.byMarketing, function (value) { return formatNumber(value) + " transaksi"; })
     ),
     renderSection(
       "Tabel pendukung statistik",
@@ -700,6 +709,11 @@ function buildLaporanHTML(judul, tipe, data, dari, sampai) {
     : tipe === "stok"
       ? buildStokReport(data, dari, sampai)
       : buildStatistikReport(data, dari, sampai);
+  const periodDescription = tipe === "stok"
+    ? "Periode listing"
+    : tipe === "statistik"
+      ? "Periode operasional"
+      : "Periode transaksi";
 
   return [
     "<!DOCTYPE html><html lang='id'><head><meta charset='UTF-8'>",
@@ -731,10 +745,10 @@ function buildLaporanHTML(judul, tipe, data, dari, sampai) {
     "</style></head><body>",
     "<header class='report-header'><div class='brand-row'><div class='brand-mark'>PR</div><div><div class='brand-name'>Philip Real Estate</div><div class='brand-subtitle'>Property Management Report</div></div></div>",
     "<h1 class='report-title'>", escapeHtml(reportType), "</h1>",
-    "<p class='report-period'>Periode data transaksi: ", escapeHtml(formatDate(dari)), " sampai ", escapeHtml(formatDate(sampai)), "</p>",
+    "<p class='report-period'>", escapeHtml(periodDescription), ": ", escapeHtml(formatDate(dari)), " sampai ", escapeHtml(formatDate(sampai)), "</p>",
     "<div class='meta-row'><span class='meta-pill'>", escapeHtml(judul), "</span><span class='meta-pill'>Dibuat ", escapeHtml(generatedAt), "</span></div></header>",
     "<main class='report-content'>", content, "</main>",
-    "<footer class='report-footer'>Dokumen ini dibuat otomatis oleh Sistem Web Management Property Philip Real Estate. Data stok menampilkan kondisi terkini saat laporan dibuat.</footer>",
+    "<footer class='report-footer'>Dokumen ini dibuat otomatis oleh Sistem Web Management Property Philip Real Estate. Data listing dibatasi oleh periode listing dan status unit mencerminkan kondisi ketika laporan dibuat.</footer>",
     "</body></html>",
   ].join("");
 }

@@ -2,6 +2,6 @@
 import api from "./api";
 
 export const statistikService = {
-    getRingkasan: () => api.get("/statistik").then(r => r.data),
+    getRingkasan: (params) => api.get("/statistik", { params }).then(r => r.data),
     getByPeriode: (params) => api.get("/statistik/by-periode", { params }).then(r => r.data),
 };
