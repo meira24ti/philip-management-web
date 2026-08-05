@@ -29,7 +29,7 @@ const categoryLabel = (value, subcategory = "") => {
 const offerLabel = (value) => ({
   dijual: "DIJUAL",
   disewa: "DISEWAKAN",
-  dijual_dan_disewa: "DIJUAL / DISEWAKAN",
+  dijual_dan_disewa: "DIJUAL & DISEWAKAN",
 }[value] || "DIJUAL");
 
 const formatPrice = (value, suffix = "") => value

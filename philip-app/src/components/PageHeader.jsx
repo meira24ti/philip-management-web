@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { BiBell, BiChevronDown, BiRefresh } from "react-icons/bi";
+import { BiBell, BiChevronDown, BiMenu, BiRefresh } from "react-icons/bi";
 import { HiOutlineHome } from "react-icons/hi";
 import { useAuth } from "../context/useAuth";
 import api from "../services/api";
@@ -8,7 +8,7 @@ import { getImageUrl } from "../utils/imageUrl";
 
 const APP_STARTED = Date.now();
 
-export default function PageHeader() {
+export default function PageHeader({ menuOpen = false, onOpenMenu }) {
   const { user, role, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -71,10 +71,22 @@ export default function PageHeader() {
   })();
 
   return (
-    <header className="relative z-30 mb-4 flex h-14 items-center justify-between rounded-2xl border border-red-100/70 bg-white/95 pl-14 pr-3 shadow-sm backdrop-blur sm:px-4 md:px-6">
-      <div className="flex items-center gap-2">
+    <header className="relative z-30 mb-4 flex h-14 items-center justify-between rounded-2xl border border-red-100/70 bg-white/95 px-3 shadow-sm backdrop-blur sm:px-4 md:px-6">
+      <div className="flex min-w-0 items-center gap-2">
+        {onOpenMenu && (
+          <button
+            type="button"
+            onClick={onOpenMenu}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-red-800 transition-colors hover:bg-red-50 md:hidden"
+            aria-label="Buka menu navigasi"
+            aria-controls="mobile-navigation"
+            aria-expanded={menuOpen}
+          >
+            <BiMenu size={23} />
+          </button>
+        )}
         <HiOutlineHome className="text-red-800" />
-        <p className="font-semibold text-red-900">{pageTitle}</p>
+        <p className="truncate font-semibold text-red-900">{pageTitle}</p>
       </div>
 
       <div className="flex items-center gap-3">
@@ -105,7 +117,7 @@ export default function PageHeader() {
         <div className="relative" ref={profileRef}>
           <button onClick={() => { setProfileOpen((open) => !open); setNotifOpen(false); }} className="flex items-center gap-2 rounded-xl p-1.5 pr-3 transition-colors hover:bg-red-50">
             <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg bg-red-800 text-white">
-              {user?.foto_profil && avatarError !== avatarKey ? <img key={avatarKey} src={getImageUrl(user.foto_profil)} className="h-full w-full bg-white object-contain" onError={() => setAvatarError(avatarKey)} alt={user?.nama || "Avatar"} /> : <span className="text-xs font-bold">{initials}</span>}
+              {user?.foto_profil && avatarError !== avatarKey ? <img key={avatarKey} src={getImageUrl(user.foto_profil)} className="h-full w-full bg-white object-contain p-0.5" onError={() => setAvatarError(avatarKey)} alt={user?.nama || "Avatar"} /> : <span className="text-xs font-bold">{initials}</span>}
             </div>
             <span className="hidden text-sm font-semibold text-red-900 md:block">{user?.nama || "Pengguna"}</span>
             <BiChevronDown className={`text-red-700 transition-transform ${profileOpen ? "rotate-180" : ""}`} />

@@ -332,7 +332,7 @@ export default function Settings() {
                   <img
                     src={getImageUrl(company.company_logo)}
                     alt="Logo"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full bg-white object-contain p-1.5"
                   />
                 ) : (
                   <span className="text-white font-bold text-2xl font-serif">P</span>
@@ -391,12 +391,12 @@ export default function Settings() {
             <h3 className="font-bold text-red-900">Profil Akun Saya</h3>
 
             <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-700 to-red-900 flex items-center justify-center text-white text-xl font-bold shadow overflow-hidden">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-700 to-red-900 flex items-center justify-center text-white text-xl font-bold shadow overflow-hidden">
                 {profile.foto_profil ? (
                   <img
                     src={getImageUrl(profile.foto_profil)}
                     alt={profile.nama}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full bg-white object-contain p-1"
                   />
                 ) : (
                   profile.nama?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "U"

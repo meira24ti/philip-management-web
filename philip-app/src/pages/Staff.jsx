@@ -1,5 +1,5 @@
 // philip-app/src/pages/Staff.jsx
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import {
   HiOutlineBan,
   HiOutlineMail,
@@ -9,6 +9,8 @@ import {
   HiOutlineUsers,
   HiOutlineEye,
   HiOutlineEyeOff,
+  HiChevronLeft,
+  HiChevronRight,
   HiSearch,
   HiX,
 } from "react-icons/hi";
@@ -52,7 +54,7 @@ function Avatar({ staff }) {
         <img
           src={fotoUrl}
           alt={staff.nama || "Foto staff"}
-          className="h-full w-full object-contain"
+          className="h-full w-full object-contain p-1"
           onError={() => setFotoError(true)}
         />
       ) : (
@@ -76,7 +78,7 @@ function StaffCard({ staff, canManage, actorRole, onEdit, onDeactivate, compact 
         "card bg-base-100 border shadow-sm transition-all duration-200",
         "hover:-translate-y-1 hover:shadow-lg",
         staff.is_active ? "border-red-50" : "border-gray-100 opacity-70",
-        compact ? "w-72 shrink-0 snap-start" : "w-full",
+        compact ? "w-[calc(100vw-3rem)] max-w-80 shrink-0 snap-start sm:w-80" : "w-full",
       ].join(" ")}
     >
       <div className="card-body gap-4 p-4">
@@ -160,54 +162,152 @@ function StaffCard({ staff, canManage, actorRole, onEdit, onDeactivate, compact 
 }
 
 // ─── ROLE SECTION ──────────────────────────────────────────
-function RoleSection({ role, staff, canManage, actorRole, onEdit, onDeactivate }) {
-  const isMarketing = role === "marketing";
+function StaffCarousel({ role, staff, canManage, actorRole, onEdit, onDeactivate }) {
+  const carouselRef = useRef(null);
+  const [scrollState, setScrollState] = useState({
+    hasOverflow: false,
+    canGoBack: false,
+    canGoForward: false,
+  });
 
-  if (staff.length === 0) return null;
+  const syncScrollState = useCallback(() => {
+    const carousel = carouselRef.current;
+    if (!carousel) return;
+
+    const maxScrollLeft = Math.max(0, carousel.scrollWidth - carousel.clientWidth);
+    const nextState = {
+      hasOverflow: maxScrollLeft > 4,
+      canGoBack: carousel.scrollLeft > 4,
+      canGoForward: carousel.scrollLeft < maxScrollLeft - 4,
+    };
+
+    setScrollState((currentState) => (
+      currentState.hasOverflow === nextState.hasOverflow
+      && currentState.canGoBack === nextState.canGoBack
+      && currentState.canGoForward === nextState.canGoForward
+        ? currentState
+        : nextState
+    ));
+  }, []);
+
+  useEffect(() => {
+    const carousel = carouselRef.current;
+    if (!carousel) return undefined;
+
+    syncScrollState();
+    const observer = typeof window.ResizeObserver === "function"
+      ? new window.ResizeObserver(syncScrollState)
+      : null;
+    observer?.observe(carousel);
+
+    return () => observer?.disconnect();
+  }, [staff.length, syncScrollState]);
+
+  const scrollCarousel = useCallback((direction) => {
+    const carousel = carouselRef.current;
+    if (!carousel) return;
+
+    carousel.scrollBy({
+      left: direction * Math.max(carousel.clientWidth * 0.85, 260),
+      behavior: "smooth",
+    });
+  }, []);
+
+  const handleKeyDown = (event) => {
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      scrollCarousel(-1);
+    }
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      scrollCarousel(1);
+    }
+  };
+
+  const sectionName = roleLabel[role] || role;
 
   return (
-    <section className="space-y-3">
+    <div className="space-y-2">
+      <div
+        ref={carouselRef}
+        role="region"
+        aria-roledescription="carousel"
+        aria-label={`Daftar staff ${sectionName}`}
+        tabIndex={0}
+        onScroll={syncScrollState}
+        onKeyDown={handleKeyDown}
+        className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain px-1 pb-3 scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {staff.map((member) => (
+          <StaffCard
+            key={member.id_user}
+            staff={member}
+            canManage={canManage}
+            actorRole={actorRole}
+            onEdit={onEdit}
+            onDeactivate={onDeactivate}
+            compact
+          />
+        ))}
+      </div>
+
+      {scrollState.hasOverflow && (
+        <div className="flex items-center justify-between gap-3 px-1">
+          <p className="text-xs text-gray-400">Geser atau gunakan panah untuk melihat staff lainnya.</p>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => scrollCarousel(-1)}
+              disabled={!scrollState.canGoBack}
+              className="btn btn-sm btn-circle border border-red-100 bg-white text-red-800 shadow-sm hover:border-red-200 hover:bg-red-50 disabled:border-gray-100 disabled:bg-gray-50 disabled:text-gray-300"
+              aria-label={`Lihat staff ${sectionName} sebelumnya`}
+            >
+              <HiChevronLeft size={18} />
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollCarousel(1)}
+              disabled={!scrollState.canGoForward}
+              className="btn btn-sm btn-circle border border-red-100 bg-white text-red-800 shadow-sm hover:border-red-200 hover:bg-red-50 disabled:border-gray-100 disabled:bg-gray-50 disabled:text-gray-300"
+              aria-label={`Lihat staff ${sectionName} berikutnya`}
+            >
+              <HiChevronRight size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RoleSection({ role, staff, canManage, actorRole, onEdit, onDeactivate }) {
+  if (staff.length === 0) return null;
+
+  const sectionName = roleLabel[role] || role;
+
+  return (
+    <section className="space-y-3" aria-labelledby={`staff-role-${role}`}>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-red-900">{roleLabel[role] || role}</h2>
+          <h2 id={`staff-role-${role}`} className="text-lg font-bold text-red-900">{sectionName}</h2>
           <p className="text-sm text-gray-500">
-            {staff.length} staff {roleLabel[role]?.toLowerCase() || role}
+            {staff.length} staff {sectionName.toLowerCase()}
           </p>
         </div>
 
         <span className={`badge ${roleBadge[role] || "badge-ghost"} text-white`}>
-          {roleLabel[role] || role}
+          {sectionName}
         </span>
       </div>
 
-      {isMarketing ? (
-        <div className="-mx-1 flex snap-x gap-4 overflow-x-auto px-1 pb-3 scroll-smooth">
-          {staff.map((member) => (
-            <StaffCard
-              key={member.id_user}
-              staff={member}
-              canManage={canManage}
-              actorRole={actorRole}
-              onEdit={onEdit}
-              onDeactivate={onDeactivate}
-              compact
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {staff.map((member) => (
-            <StaffCard
-              key={member.id_user}
-              staff={member}
-              canManage={canManage}
-              actorRole={actorRole}
-              onEdit={onEdit}
-              onDeactivate={onDeactivate}
-            />
-          ))}
-        </div>
-      )}
+      <StaffCarousel
+        role={role}
+        staff={staff}
+        canManage={canManage}
+        actorRole={actorRole}
+        onEdit={onEdit}
+        onDeactivate={onDeactivate}
+      />
     </section>
   );
 }
@@ -604,7 +704,7 @@ export default function Staff() {
                         <img
                           src={editFotoPreview || getImageUrl(selectedStaff?.foto_profil)}
                           alt=""
-                          className="w-full h-full object-cover"
+                          className="w-full h-full bg-white object-contain p-1"
                         />
                       ) : (
                         <div className="w-full h-full bg-gradient-to-br from-red-700 to-red-900 flex items-center justify-center text-white text-sm font-bold">

@@ -12,6 +12,7 @@ import { useToast } from "../components/ToastContext";
 import { propertiService } from "../services/propertiService";
 import { generateFlyerPNG, downloadFlyer } from "../utils/generateFlyer";
 import { getImageUrl } from "../utils/imageUrl";
+import { getOfferLabel } from "../utils/propertyLabels";
 
 // ─── Konfigurasi role ──────────────────────────────────────────
 const ROLE_CONFIG = {
@@ -189,12 +190,7 @@ export default function PropertyDetail() {
     return "Rp " + Number(harga).toLocaleString("id-ID");
   };
 
-  const badgeMap = {
-    dijual: "Dijual",
-    disewa: "Disewa",
-    dijual_dan_disewa: "Jual/Sewa"
-  };
-  const badge = badgeMap[p.jenis_penawaran] || p.jenis_penawaran;
+  const badge = getOfferLabel(p.jenis_penawaran);
 
   return (
     <div className="space-y-4">

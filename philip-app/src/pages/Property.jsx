@@ -5,6 +5,7 @@ import { useAuth } from "../context/useAuth";
 import { useToast } from "../components/ToastContext";
 import { propertiService } from "../services/propertiService";
 import { getImageUrl } from "../utils/imageUrl";
+import { getOfferLabel } from "../utils/propertyLabels";
 import {
   HiOutlinePlus, HiOutlineEye, HiOutlineShare, HiOutlinePencil,
   HiOutlineTrash, HiSearch, HiX,
@@ -745,7 +746,7 @@ export default function Property() {
           <option value="">Semua Penawaran</option>
           <option value="dijual">Dijual</option>
           <option value="disewa">Disewakan</option>
-          <option value="dijual_dan_disewa">Jual &amp; Sewa</option>
+          <option value="dijual_dan_disewa">Dijual &amp; Disewakan</option>
         </select>
 
         <select className="select select-bordered select-sm w-full rounded-xl border-red-100 bg-white sm:w-auto" value={filterStatusUnit} onChange={e => setFilterStatusUnit(e.target.value)}>
@@ -851,7 +852,7 @@ export default function Property() {
                   onError={e => e.target.src = "https://placehold.co/400x200/7A0000/white?text=Foto"}
                 />
                 <div className="absolute top-2 left-2">
-                  <span className="badge badge-sm badge-error text-white">{p.jenis_penawaran}</span>
+                  <span className="badge badge-sm badge-error text-white">{getOfferLabel(p.jenis_penawaran)}</span>
                 </div>
                 <div className="absolute top-2 right-2">
                   <span className={`badge badge-sm ${unitClass[p.status_unit]}`}>{unitLabel[p.status_unit]}</span>

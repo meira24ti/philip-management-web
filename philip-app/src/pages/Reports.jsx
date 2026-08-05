@@ -16,7 +16,34 @@ import {
 
 const COLORS = ["#7A0000", "#3D0000", "#b91c1c", "#dc2626", "#ef4444", "#f87171"];
 
-const tipeBadge = { Penjualan: "badge-error", Stok: "badge-success", Statistik: "badge-info" };
+const REPORT_TYPE_META = {
+  penjualan: {
+    label: "Laporan Penjualan",
+    shortLabel: "Penjualan",
+    badge: "badge-error",
+    description: "Rincian transaksi, nilai deal, dan komisi pada periode terpilih.",
+  },
+  stok: {
+    label: "Laporan Stok Properti",
+    shortLabel: "Stok",
+    badge: "badge-success",
+    description: "Komposisi listing aktif dan persebaran kategori properti.",
+  },
+  statistik: {
+    label: "Laporan Statistik",
+    shortLabel: "Statistik",
+    badge: "badge-info",
+    description: "Ringkasan performa, tren transaksi, dan visualisasi data utama.",
+  },
+};
+
+const formatDate = (value) => value
+  ? new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  })
+  : "-";
 
 export default function Reports() {
   const { role } = useAuth();
@@ -76,6 +103,11 @@ export default function Reports() {
     loadAll();
   }, [canManageReports, loadStats, loadRiwayat]);
   const handleGenerate = async () => {
+    if (!periodeStart || !periodeEnd || periodeStart > periodeEnd) {
+      showToast("Pilih periode laporan yang valid terlebih dahulu", "error");
+      return;
+    }
+
     try {
       setGenerating(true);
       await laporanService.generate({
@@ -131,6 +163,8 @@ export default function Reports() {
   const byTipe = stats?.byTipe || [];
   const trenBulan = stats?.trenBulan || [];
   const komisiBulanIni = stats?.komisiBulanIni || 0;
+  const selectedReport = REPORT_TYPE_META[tipe] || REPORT_TYPE_META.penjualan;
+  const isPeriodValid = Boolean(periodeStart && periodeEnd && periodeStart <= periodeEnd);
 
   // Format tren bulan untuk chart
   const formattedTren = trenBulan.map(item => ({
@@ -152,21 +186,24 @@ export default function Reports() {
 
       {/* ── Header ── */}
       <div>
-        <h1 className="text-xl font-bold text-red-900">Statistik & Laporan</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Ringkasan performa properti Philip Real Estate</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-xl font-bold text-red-900">Statistik & Laporan</h1>
+          <span className="rounded-full border border-red-100 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700">Data operasional</span>
+        </div>
+        <p className="mt-1 text-sm text-gray-500">Ringkasan performa properti Philip Real Estate dan dokumen siap unduh.</p>
       </div>
 
       {/* ── Stat cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {statCards.map(s => (
-          <div key={s.label} className={`${s.bg} ${s.border} border rounded-2xl p-4`}>
+          <div key={s.label} className={`${s.bg} ${s.border} group border rounded-2xl p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md`}>
             <div className="flex items-start justify-between">
               <div>
                 <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
                 <p className="text-xs text-gray-500 mt-0.5">{s.sub}</p>
                 <p className="text-xs font-semibold text-gray-600 mt-1">{s.label}</p>
               </div>
-              <s.icon size={22} className={`${s.color} opacity-60`} />
+              <s.icon size={22} className={`${s.color} opacity-60 transition-transform duration-300 group-hover:scale-110`} />
             </div>
           </div>
         ))}
@@ -175,7 +212,7 @@ export default function Reports() {
       {/* ── Tren transaksi chart (Recharts) ── */}
       <div className="card bg-base-100 shadow border border-red-50">
         <div className="card-body p-4 sm:p-5">
-          <h3 className="font-bold text-red-900 mb-4">Tren Transaksi 6 Bulan Terakhir</h3>
+          <div className="mb-4"><h3 className="font-bold text-red-900">Tren Transaksi 6 Bulan Terakhir</h3><p className="mt-0.5 text-xs text-gray-400">Perbandingan unit terjual dan tersewa per bulan.</p></div>
           {formattedTren.length > 0 ? (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={formattedTren}>
@@ -198,7 +235,7 @@ export default function Reports() {
         {/* ── Distribusi Tipe Properti (Pie Chart) ── */}
         <div className="card bg-base-100 shadow border border-red-50">
           <div className="card-body p-4 sm:p-5">
-            <h3 className="font-bold text-red-900 mb-3">Properti Terlaku per Tipe</h3>
+            <div className="mb-3"><h3 className="font-bold text-red-900">Properti Terlaku per Tipe</h3><p className="mt-0.5 text-xs text-gray-400">Komposisi listing berdasarkan kategori.</p></div>
             {byTipe.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
@@ -228,7 +265,7 @@ export default function Reports() {
         {/* ── Komisi per bulan (Area Chart) ── */}
         <div className="card bg-base-100 shadow border border-red-50">
           <div className="card-body p-4 sm:p-5">
-            <h3 className="font-bold text-red-900 mb-3">Komisi Perusahaan (Rp)</h3>
+            <div className="mb-3"><h3 className="font-bold text-red-900">Komisi Perusahaan (Rp)</h3><p className="mt-0.5 text-xs text-gray-400">Akumulasi komisi dari transaksi tercatat.</p></div>
             {formattedTren.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={formattedTren}>
@@ -258,10 +295,10 @@ export default function Reports() {
 
       {/* ── Generate Laporan (Direktur only) ── */}
       {canManageReports && (
-        <div className="card bg-base-100 shadow border border-red-50">
+        <div className="card bg-base-100 shadow border border-red-50 overflow-hidden">
           <div className="card-body p-4 sm:p-5">
             <h3 className="font-bold text-red-900 mb-1">Generate Laporan PDF</h3>
-            <p className="text-xs text-gray-400 mb-4">Laporan dibuat otomatis dari data yang tersedia di sistem.</p>
+            <p className="text-xs text-gray-400 mb-4">Laporan dibuat otomatis dari data yang tersedia di sistem dan disimpan di riwayat.</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <label className="form-control">
                 <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Jenis Laporan</span></div>
@@ -294,10 +331,15 @@ export default function Reports() {
                 />
               </label>
             </div>
+            <div className="mt-4 flex flex-col gap-2 rounded-xl border border-red-100 bg-red-50/60 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div><p className="text-xs font-bold text-red-900">{selectedReport.label}</p><p className="mt-0.5 text-xs text-gray-600">{selectedReport.description}</p></div>
+              <span className="shrink-0 text-xs font-semibold text-red-700">{formatDate(periodeStart)} – {formatDate(periodeEnd)}</span>
+            </div>
+            {!isPeriodValid && <p className="mt-2 text-xs font-medium text-red-600" role="alert">Tanggal akhir harus sama dengan atau setelah tanggal mulai.</p>}
             <div className="mt-4">
               <button
                 onClick={handleGenerate}
-                disabled={generating}
+                disabled={generating || !isPeriodValid}
                 className="btn btn-sm btn-error text-white rounded-xl gap-2 shadow w-full sm:w-auto"
               >
                 {generating ? (
@@ -349,15 +391,15 @@ export default function Reports() {
                         <tr key={reportId} className="hover:bg-red-50/30 transition-colors border-b border-red-50">
                           <td className="font-medium text-sm text-gray-700">{r.judul}</td>
                           <td>
-                            <span className={`badge badge-sm ${tipeBadge[r.tipe] || "badge-ghost"} text-white`}>
-                              {r.tipe || "Laporan"}
+                            <span className={`badge badge-sm ${REPORT_TYPE_META[r.tipe]?.badge || "badge-ghost"} text-white`}>
+                              {REPORT_TYPE_META[r.tipe]?.shortLabel || r.tipe || "Laporan"}
                             </span>
                           </td>
                           <td className="text-xs text-gray-500">
-                            {r.periode_mulai || r.periode_start || "-"} — {r.periode_selesai || r.periode_end || "-"}
+                            {formatDate(r.periode_mulai || r.periode_start)} – {formatDate(r.periode_selesai || r.periode_end)}
                           </td>
                           <td className="text-xs text-gray-500">
-                            {r.created_at ? new Date(r.created_at).toLocaleDateString("id-ID") : "-"}
+                            {formatDate(r.created_at)}
                           </td>
                           <td>
                             <button

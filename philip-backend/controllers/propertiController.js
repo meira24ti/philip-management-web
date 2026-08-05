@@ -489,9 +489,14 @@ exports.getShareText = async (req, res) => {
 
     const p = rows[0];
     const fmt = (n) => n ? "Rp " + Number(n).toLocaleString("id-ID") : null;
+    const offerLabel = {
+      dijual: "DIJUAL",
+      disewa: "DISEWAKAN",
+      dijual_dan_disewa: "DIJUAL & DISEWAKAN",
+    }[p.jenis_penawaran] || "PENAWARAN";
 
     const text = [
-      `*${(p.kategori||"PROPERTI").toUpperCase()} ${(p.jenis_penawaran||"").toUpperCase()}*`,
+      `*${(p.kategori||"PROPERTI").toUpperCase()} ${offerLabel}*`,
       `📍 ${p.nama_jalan}, ${p.kota}`,
       fmt(p.harga_jual)  ? `💰 Harga Jual: ${fmt(p.harga_jual)}` : null,
       fmt(p.harga_sewa)  ? `🏠 Sewa: ${fmt(p.harga_sewa)}/thn`   : null,
