@@ -124,7 +124,6 @@ async function getStatistics(req, res) {
       [[summaryRow]],
       [byJenis],
       [byTipe],
-      [byMarketing],
       [trendRows],
       [[listingStatusRow]],
       [listingByTipe],
@@ -160,19 +159,6 @@ async function getStatistics(req, res) {
           AND t.tanggal_transaksi < DATE_ADD(?, INTERVAL 1 DAY)
         GROUP BY COALESCE(NULLIF(tp.kategori, ''), 'lainnya')
         ORDER BY jumlah DESC, kategori ASC`, transactionParams),
-      pool.query(`
-        SELECT
-          COALESCE(NULLIF(u.nama, ''), 'Belum ditetapkan') AS nama,
-          COUNT(*) AS jumlah,
-          COALESCE(SUM(t.harga_aktual), 0) AS nilai_transaksi,
-          COALESCE(SUM(t.komisi_nominal), 0) AS total_komisi
-        FROM transaksi t
-        LEFT JOIN user u ON u.id_user = t.dicatat_oleh
-        WHERE t.tanggal_transaksi >= ?
-          AND t.tanggal_transaksi < DATE_ADD(?, INTERVAL 1 DAY)
-        GROUP BY t.dicatat_oleh, u.nama
-        ORDER BY jumlah DESC, nama ASC
-        LIMIT 8`, transactionParams),
       pool.query(`
         SELECT
           DATE_FORMAT(t.tanggal_transaksi, '${bucketFormat}') AS bucket,
@@ -266,7 +252,6 @@ async function getStatistics(req, res) {
       summary,
       byJenis,
       byTipe,
-      byMarketing,
       byStatus,
       listingByTipe,
       byPenawaran: listingByPenawaran,

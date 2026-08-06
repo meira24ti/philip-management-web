@@ -38,7 +38,10 @@ const CATEGORY_ALIASES = Object.freeze({
   kombinasi: "kombinasi",
 });
 
-const CLUSTER_PREFIX = /^\s*cluster(?:\s*[-|:]\s*)?/i;
+// "Cluster" used to be stored in the subtype of a Rumah record.  Require a
+// separator, whitespace, or the end of the value so an unrelated subtype such
+// as "Clustered" is never silently reclassified as Rumah Cluster.
+const CLUSTER_PREFIX = /^\s*cluster(?=$|\s|[-|:])(?:\s*[-|:]\s*|\s+)?/i;
 
 const normalizeKategori = (value) => {
   const key = String(value || "").trim().toLowerCase();

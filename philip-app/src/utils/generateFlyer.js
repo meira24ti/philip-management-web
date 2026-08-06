@@ -1,4 +1,5 @@
 import { getImageUrl } from "./imageUrl";
+import { getPropertyTypeLabel } from "./propertyTypes";
 
 const WIDTH = 1080;
 const HEIGHT = 1920;
@@ -6,25 +7,8 @@ const MAROON = "#870014";
 const DEEP_MAROON = "#5e0010";
 const CREAM = "#fffaf6";
 
-const categoryLabel = (value, subcategory = "") => {
-  if (String(value || "").trim().toLowerCase() === "rumah" && /^cluster(?:\s*[-|:]\s*)?/i.test(String(subcategory || ""))) {
-    return "RUMAH CLUSTER";
-  }
-  const labels = {
-    rumah: "RUMAH",
-    rumah_cluster: "RUMAH CLUSTER",
-    "rumah cluster": "RUMAH CLUSTER",
-    rumah_subsidi: "RUMAH SUBSIDI",
-    "rumah subsidi": "RUMAH SUBSIDI",
-    ruko: "RUKO",
-    tanah: "TANAH",
-    gudang: "GUDANG",
-    villa: "VILLA",
-    apartemen: "APARTEMEN",
-    kombinasi: "KOMBINASI",
-  };
-  return labels[String(value || "").trim().toLowerCase()] || String(value || "PROPERTI").toUpperCase();
-};
+const categoryLabel = (value, subcategory = "") =>
+  getPropertyTypeLabel(value, subcategory).toUpperCase();
 
 const offerLabel = (value) => ({
   dijual: "DIJUAL",

@@ -1,6 +1,6 @@
 // philip-app/src/pages/Property.jsx — halaman CRUD properti lengkap
 import { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/useAuth";
 import { useToast } from "../components/ToastContext";
 import { propertiService } from "../services/propertiService";
@@ -457,6 +457,8 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
 export default function Property() {
   const { role } = useAuth();
   const { showToast } = useToast();
+  const { editId } = useParams();
+  const navigate = useNavigate();
   const config = ROLE_CONFIG[role] || {};
 
   const [properties, setProperties] = useState([]);
@@ -486,6 +488,36 @@ export default function Property() {
   // ─── State untuk dropdown vendor & marketing ────────────────
   const [vendors, setVendors] = useState([]);
   const [marketings, setMarketings] = useState([]);
+
+  // The detail page opens this same form through /property/edit/:editId.
+  // Loading the complete record here keeps direct URLs and browser refreshes
+  // working just like editing from the property list.
+  useEffect(() => {
+    if (!editId) return undefined;
+
+    if (!config.canEdit) {
+      showToast("Anda tidak memiliki akses untuk mengedit properti", "error");
+      navigate("/property", { replace: true });
+      return undefined;
+    }
+
+    let isActive = true;
+    propertiService.getById(editId)
+      .then((fullData) => {
+        if (!isActive) return;
+        setEditItem(fullData);
+        setShowForm(true);
+      })
+      .catch(() => {
+        if (!isActive) return;
+        showToast("Gagal memuat data properti untuk diedit", "error");
+        navigate("/property", { replace: true });
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [config.canEdit, editId, navigate, showToast]);
 
   // ─── Load data vendor & marketing ──────────────────────────
   const loadVendorsAndMarketings = useCallback(async () => {
@@ -572,6 +604,7 @@ export default function Property() {
   async function handleSubmit(formData, fotoFiles) {
     try {
       setSaving(true);
+      let savedPropertyId = null;
 
       // Konversi boolean ke "1"/"0" untuk FormData
       const processedData = {
@@ -591,6 +624,7 @@ export default function Property() {
           return;
         }
         await propertiService.update(propertiId, payload);
+        savedPropertyId = propertiId;
         showToast("Properti berhasil diperbarui");
       } else {
         // Tambah baru: pakai FormData untuk upload foto
@@ -601,6 +635,9 @@ export default function Property() {
       setShowForm(false);
       setEditItem(null);
       await loadData(debouncedSearch, filterKategori, filterDari, filterSampai, filterHargaMin, filterHargaMax, filterJenis, filterStatusUnit, filterKota, filterLtMin, filterLtMax);
+      if (savedPropertyId && editId) {
+        navigate(`/property/${savedPropertyId}`, { replace: true });
+      }
     } catch (err) {
       showToast(err.response?.data?.message || "Gagal menyimpan properti", "error");
     } finally {
@@ -934,14 +971,25 @@ export default function Property() {
               key={editItem?.id || "new"}
               initial={editItem || undefined}
               onSubmit={handleSubmit}
-              onCancel={() => { setShowForm(false); setEditItem(null); }}
+              onCancel={() => {
+                setShowForm(false);
+                setEditItem(null);
+                if (editId) navigate(`/property/${editId}`, { replace: true });
+              }}
               loading={saving}
               vendors={vendors}
               marketings={marketings}
               onCreateVendor={handleCreateVendor}
             />
           </div>
-          <div className="modal-backdrop" onClick={() => { setShowForm(false); setEditItem(null); }} />
+          <div
+            className="modal-backdrop"
+            onClick={() => {
+              setShowForm(false);
+              setEditItem(null);
+              if (editId) navigate(`/property/${editId}`, { replace: true });
+            }}
+          />
         </div>
       )}
 

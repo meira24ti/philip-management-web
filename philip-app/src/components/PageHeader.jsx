@@ -62,6 +62,7 @@ export default function PageHeader({ menuOpen = false, onOpenMenu }) {
   const avatarKey = user?.foto_profil || "no-avatar";
   const initials = user?.nama ? user.nama.split(" ").map((name) => name[0]).join("").slice(0, 2).toUpperCase() : "?";
   const pageTitle = (() => {
+    if (location.pathname.startsWith("/property/edit/")) return "Edit Properti";
     if (location.pathname.startsWith("/property/")) return "Detail Properti";
     if (location.pathname === "/property") return "Properti";
     if (location.pathname === "/staff") return "Staff";

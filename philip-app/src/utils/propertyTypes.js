@@ -30,7 +30,9 @@ const TYPE_ALIASES = Object.freeze({
   kombinasi: "kombinasi",
 });
 
-const CLUSTER_PREFIX = /^\s*cluster(?:\s*[-|:]\s*)?/i;
+// Match only the old "Cluster - ..." convention, not ordinary words such as
+// "Clustered" that happen to start with the same characters.
+const CLUSTER_PREFIX = /^\s*cluster(?=$|\s|[-|:])(?:\s*[-|:]\s*|\s+)?/i;
 
 export const normalizePropertyType = (value) =>
   TYPE_ALIASES[String(value || "").trim().toLowerCase()] || "";

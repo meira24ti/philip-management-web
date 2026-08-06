@@ -178,11 +178,11 @@ function StatCard({ label, value, note, Icon, tone = "red" }) {
   };
 
   return (
-    <article className={`group min-w-0 rounded-2xl border p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md ${tones[tone]}`}>
+    <article className={`interactive-panel group min-w-0 rounded-2xl border p-4 shadow-sm ${tones[tone]}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-[11px] font-bold uppercase tracking-[0.08em] opacity-65">{label}</p>
-          <p className="mt-2 truncate text-lg font-extrabold leading-tight sm:text-xl" title={value}>{value}</p>
+          <p className="numeric-text mt-2 truncate text-lg font-extrabold leading-tight sm:text-xl" title={value}>{value}</p>
           <p className="mt-1 text-xs opacity-70">{note}</p>
         </div>
         <Icon size={22} className="shrink-0 opacity-55 transition-transform duration-300 group-hover:scale-110" />
@@ -363,7 +363,6 @@ export default function Reports() {
   const transactionTypes = normalizeRows(stats?.byJenis, "jenis", TRANSACTION_LABELS);
   const propertyTypes = normalizeRows(stats?.byTipe, "kategori", TYPE_LABELS);
   const listingOffers = normalizeRows(stats?.byPenawaran, "jenis_penawaran", OFFER_LABELS);
-  const marketingRows = (stats?.byMarketing || []).map((row) => ({ ...row, jumlah: number(row.jumlah) }));
   const trend = (stats?.trenBulan || []).map((row) => ({
     ...row,
     total_transaksi: number(row.total_transaksi),
@@ -376,7 +375,6 @@ export default function Reports() {
   const trendInterval = responsePeriod?.granularity === "harian"
     ? Math.max(0, Math.ceil(trend.length / 8) - 1)
     : 0;
-  const maxMarketing = Math.max(...marketingRows.map((row) => row.jumlah), 1);
 
   const statCards = [
     {
@@ -411,7 +409,7 @@ export default function Reports() {
 
   return (
     <div className="space-y-5">
-      <header>
+      <header className="motion-reveal">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-xl font-bold text-red-900">Statistik & Laporan</h1>
           <span className="rounded-full border border-red-100 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700">Data operasional</span>
@@ -419,7 +417,7 @@ export default function Reports() {
         <p className="mt-1 text-sm text-gray-500">Pantau transaksi dan listing pada waktu yang Anda pilih, lalu buat laporan dengan periode yang sama.</p>
       </header>
 
-      <section className="overflow-hidden rounded-2xl border border-red-100 bg-gradient-to-br from-red-50/90 via-white to-white shadow-sm">
+      <section className="interactive-panel motion-reveal motion-reveal-delay-1 overflow-hidden rounded-2xl border border-red-100 bg-gradient-to-br from-red-50/90 via-white to-white shadow-sm">
         <div className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-red-700">Filter waktu</p>
@@ -521,30 +519,30 @@ export default function Reports() {
         </div>
       ) : (
         <>
-          <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 ${loading ? "opacity-60" : ""}`} aria-busy={loading}>
+          <div className={`motion-stagger grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 ${loading ? "opacity-60" : ""}`} aria-busy={loading}>
             {statCards.map((card) => <StatCard key={card.label} {...card} />)}
           </div>
 
-          <section className="grid gap-3 rounded-2xl border border-red-50 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
+          <section className="interactive-panel motion-reveal motion-reveal-delay-1 grid gap-3 rounded-2xl border border-red-50 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-400">Penjualan</p>
-              <p className="mt-1 text-lg font-bold text-red-800">{formatNumber(summary.total_terjual)} <span className="text-xs font-medium text-gray-400">transaksi</span></p>
+              <p className="numeric-text mt-1 text-lg font-bold text-red-800">{formatNumber(summary.total_terjual)} <span className="text-xs font-medium text-gray-400">transaksi</span></p>
             </div>
             <div className="sm:border-l sm:border-red-50 sm:pl-4">
               <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-400">Penyewaan</p>
-              <p className="mt-1 text-lg font-bold text-blue-700">{formatNumber(summary.total_tersewa)} <span className="text-xs font-medium text-gray-400">transaksi</span></p>
+              <p className="numeric-text mt-1 text-lg font-bold text-blue-700">{formatNumber(summary.total_tersewa)} <span className="text-xs font-medium text-gray-400">transaksi</span></p>
             </div>
             <div className="lg:border-l lg:border-red-50 lg:pl-4">
               <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-400">Rata-rata nilai</p>
-              <p className="mt-1 truncate text-lg font-bold text-gray-700" title={formatCurrency(summary.rata_rata_nilai)}>{formatCurrency(summary.rata_rata_nilai)}</p>
+              <p className="numeric-text mt-1 truncate text-lg font-bold text-gray-700" title={formatCurrency(summary.rata_rata_nilai)}>{formatCurrency(summary.rata_rata_nilai)}</p>
             </div>
             <div className="lg:border-l lg:border-red-50 lg:pl-4">
               <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-400">Properti ditransaksikan</p>
-              <p className="mt-1 text-lg font-bold text-gray-700">{formatNumber(summary.properti_tertransaksi)} <span className="text-xs font-medium text-gray-400">unit unik</span></p>
+              <p className="numeric-text mt-1 text-lg font-bold text-gray-700">{formatNumber(summary.properti_tertransaksi)} <span className="text-xs font-medium text-gray-400">unit unik</span></p>
             </div>
           </section>
 
-          <section className="card border border-red-50 bg-base-100 shadow-sm">
+          <section className="interactive-panel motion-reveal motion-reveal-delay-2 card border border-red-50 bg-base-100 shadow-sm">
             <div className="card-body p-4 sm:p-5">
               <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
                 <div>
@@ -573,8 +571,8 @@ export default function Reports() {
             </div>
           </section>
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <section className="card border border-red-50 bg-base-100 shadow-sm">
+          <div className="motion-stagger grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <section className="interactive-panel card border border-red-50 bg-base-100 shadow-sm">
               <div className="card-body p-4 sm:p-5">
                 <div className="mb-3">
                   <h3 className="font-bold text-red-900">Komposisi transaksi</h3>
@@ -594,7 +592,7 @@ export default function Reports() {
               </div>
             </section>
 
-            <section className="card border border-red-50 bg-base-100 shadow-sm">
+            <section className="interactive-panel card border border-red-50 bg-base-100 shadow-sm">
               <div className="card-body p-4 sm:p-5">
                 <div className="mb-3">
                   <h3 className="font-bold text-red-900">Transaksi per tipe properti</h3>
@@ -614,7 +612,7 @@ export default function Reports() {
               </div>
             </section>
 
-            <section className="card border border-red-50 bg-base-100 shadow-sm">
+            <section className="interactive-panel card border border-red-50 bg-base-100 shadow-sm">
               <div className="card-body p-4 sm:p-5">
                 <div className="mb-3">
                   <h3 className="font-bold text-red-900">Akumulasi komisi</h3>
@@ -640,36 +638,9 @@ export default function Reports() {
               </div>
             </section>
 
-            <section className="card border border-red-50 bg-base-100 shadow-sm">
-              <div className="card-body p-4 sm:p-5">
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-bold text-red-900">Kontributor transaksi</h3>
-                    <p className="mt-0.5 text-xs text-gray-400">Pengguna yang mencatat transaksi terbanyak pada periode aktif.</p>
-                  </div>
-                  <span className="rounded-full bg-red-50 px-2 py-1 text-[10px] font-bold text-red-700">Top {Math.min(marketingRows.length, 5)}</span>
-                </div>
-                {marketingRows.length ? (
-                  <div className="space-y-3">
-                    {marketingRows.slice(0, 5).map((row, index) => (
-                      <div key={`${row.nama}-${index}`}>
-                        <div className="mb-1 flex items-center justify-between gap-3 text-xs">
-                          <span className="truncate font-semibold text-gray-700">{row.nama}</span>
-                          <span className="shrink-0 font-bold text-red-800">{formatNumber(row.jumlah)} transaksi</span>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-red-50">
-                          <div className="h-full rounded-full bg-gradient-to-r from-red-900 to-red-600 transition-all duration-500" style={{ width: `${Math.max((row.jumlah / maxMarketing) * 100, 8)}%` }} />
-                        </div>
-                        <p className="mt-1 text-[11px] text-gray-400">Nilai: {formatCurrency(row.nilai_transaksi)}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : <EmptyChart message="Belum ada transaksi yang dapat dikelompokkan berdasarkan pencatat." />}
-              </div>
-            </section>
           </div>
 
-          <section className="overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm">
+          <section className="interactive-panel motion-reveal overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm">
             <div className="flex flex-col gap-3 border-b border-red-50 bg-red-50/55 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
               <div>
                 <h3 className="font-bold text-red-900">Kondisi listing</h3>
@@ -686,14 +657,14 @@ export default function Reports() {
                   ["Tersewa", byStatus.tersewa, "text-blue-700 bg-blue-50 border-blue-100"],
                 ].map(([label, value, classes]) => (
                   <div key={label} className={`rounded-xl border p-3 ${classes}`}>
-                    <p className="text-lg font-extrabold">{formatNumber(value)}</p>
+                    <p className="numeric-text text-lg font-extrabold">{formatNumber(value)}</p>
                     <p className="mt-0.5 text-[11px] font-semibold opacity-75">{label}</p>
                   </div>
                 ))}
               </div>
               <div className="rounded-xl border border-red-100 bg-white p-3">
                 <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-400">Snapshot stok saat ini</p>
-                <p className="mt-1 text-xl font-bold text-red-900">{formatNumber(currentStock.total)} <span className="text-xs font-medium text-gray-400">listing tersimpan</span></p>
+                <p className="numeric-text mt-1 text-xl font-bold text-red-900">{formatNumber(currentStock.total)} <span className="text-xs font-medium text-gray-400">listing tersimpan</span></p>
                 <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
                   <span><b className="text-emerald-700">{formatNumber(currentStock.tersedia)}</b> tersedia</span>
                   <span><b className="text-amber-700">{formatNumber(currentStock.negosiasi)}</b> negosiasi</span>
@@ -710,7 +681,7 @@ export default function Reports() {
       )}
 
       {canManageReports && (
-        <section className="overflow-hidden rounded-2xl border border-red-100 bg-base-100 shadow-sm">
+        <section className="interactive-panel motion-reveal overflow-hidden rounded-2xl border border-red-100 bg-base-100 shadow-sm">
           <div className="card-body p-4 sm:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -743,7 +714,7 @@ export default function Reports() {
       )}
 
       {canManageReports && (
-        <section className="card border border-red-50 bg-base-100 shadow-sm">
+        <section className="interactive-panel motion-reveal card border border-red-50 bg-base-100 shadow-sm">
           <div className="card-body p-4 sm:p-5">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>

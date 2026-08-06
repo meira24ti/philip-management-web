@@ -238,9 +238,6 @@ function enrichReportData(tipe, originalData, dari, sampai) {
     data.byTipe = bucketRows(transaksi, function (item) {
       return labelFor(TYPE_LABELS, item.kategori, "Lainnya");
     });
-    data.byMarketing = bucketRows(transaksi, function (item) {
-      return item.dicatat_oleh_nama || "Belum diketahui";
-    });
     data.byKota = bucketRows(transaksi, function (item) {
       return item.kota || "Belum diketahui";
     });
@@ -266,7 +263,6 @@ function enrichReportData(tipe, originalData, dari, sampai) {
     data.summary.total_komisi = toNumber(data.summary.total_komisi);
     data.trenBulan = fillMonthlyTrend(data.trenBulan, dari, sampai);
     data.byJenis = normalizeSimpleRows(data.byJenis, TRANSACTION_LABELS);
-    data.byMarketing = normalizeSimpleRows(data.byMarketing, {});
   }
 
   return data;
@@ -539,11 +535,6 @@ function buildPenjualanReport(data, dari, sampai) {
       ])
     ),
     renderSection(
-      "Kinerja pencatatan",
-      "Jumlah transaksi yang dicatat oleh masing-masing pengguna.",
-      renderHorizontalBars("Kontributor transaksi", "", data.byMarketing, function (value) { return formatNumber(value) + " transaksi"; })
-    ),
-    renderSection(
       "Detail transaksi",
       "Daftar lengkap transaksi yang termasuk dalam periode laporan.",
       renderTable(
@@ -622,7 +613,6 @@ function buildStatistikReport(data, dari, sampai) {
   const totalListing = status.total;
   const totalTransaction = toNumber(summary.total_transaksi);
   const leadingType = topLabel(data.byTipe);
-  const leadingMarketing = topLabel(data.byMarketing);
   const insights = [
     totalListing
       ? formatNumber(status.tersedia) + " dari " + formatNumber(totalListing) + " listing masih tersedia."
@@ -634,7 +624,6 @@ function buildStatistikReport(data, dari, sampai) {
       ? "Total komisi yang tercatat adalah " + formatCurrency(summary.total_komisi) + "."
       : null,
     leadingType ? "Tipe listing terbesar pada periode laporan adalah " + leadingType + "." : null,
-    leadingMarketing ? "Pencatat transaksi terbanyak adalah " + leadingMarketing + "." : null,
   ];
   const monthlyRows = (data.trenBulan || []).map(function (item) {
     return "<tr>" +
@@ -671,11 +660,6 @@ function buildStatistikReport(data, dari, sampai) {
       "Distribusi tipe properti",
       "Komposisi listing yang terdaftar pada periode laporan untuk membantu prioritas pemasaran.",
       renderHorizontalBars("Tipe properti", "", data.byTipe, function (value) { return formatNumber(value) + " unit"; })
-    ),
-    renderSection(
-      "Kinerja pencatatan transaksi",
-      "Jumlah transaksi yang dicatat oleh masing-masing pengguna pada periode laporan.",
-      renderHorizontalBars("Kontributor transaksi", "", data.byMarketing, function (value) { return formatNumber(value) + " transaksi"; })
     ),
     renderSection(
       "Tabel pendukung statistik",

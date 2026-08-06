@@ -91,6 +91,8 @@ function App() {
         }>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/property" element={<Property />} />
+          {/* Keep the edit URL explicit so it is not treated as a property ID. */}
+          <Route path="/property/edit/:editId" element={<Property />} />
           <Route path="/property/:id" element={<PropertyDetail />} />
           <Route path="/staff" element={<Staff />} />
           <Route path="/settings" element={<Settings />} />

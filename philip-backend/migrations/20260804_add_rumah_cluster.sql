@@ -26,4 +26,4 @@ SET kategori = 'rumah_cluster',
       ''
     ))
 WHERE kategori = 'rumah'
-  AND LOWER(TRIM(COALESCE(subkategori, ''))) REGEXP '^cluster([[:space:]]*[-|:])?';
+  AND LOWER(TRIM(COALESCE(subkategori, ''))) REGEXP '^cluster($|[[:space:]]|[-|:])';

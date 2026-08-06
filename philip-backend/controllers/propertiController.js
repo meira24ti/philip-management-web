@@ -8,7 +8,7 @@ const { normalizeDecimalValue, sanitizeForColumnLimits } = require("../utils/num
 const { imageFileFilter, safeImageExtension } = require("../utils/uploadValidation");
 const {
   normalizeKategori,
-  isLegacyRumahCluster,
+  isRumahCluster,
   cleanClusterSubkategori,
   kategoriLabel,
 } = require("../utils/propertyCategories");
@@ -26,12 +26,24 @@ const normalizeTypeData = (kategori, subkategori = "") => {
 
   // Backwards compatibility for records submitted by older clients that used
   // Rumah + "Cluster - ..." instead of the dedicated Rumah Cluster category.
-  const legacyCluster = isLegacyRumahCluster(kategori, subkategori);
+  const isCluster = isRumahCluster(kategori, subkategori);
   return {
-    kategori: legacyCluster ? "rumah_cluster" : normalizedKategori,
-    subkategori: legacyCluster ? cleanClusterSubkategori(subkategori) : (subkategori || ""),
+    kategori: isCluster ? "rumah_cluster" : normalizedKategori,
+    // Keep the subtype clean for both old clients (Rumah + Cluster - ...)
+    // and current API clients that send the canonical Rumah Cluster value.
+    subkategori: isCluster ? cleanClusterSubkategori(subkategori) : String(subkategori || "").trim(),
   };
 };
+
+// Transitional compatibility for databases that still contain the pre-migration
+// Rumah + "Cluster - ..." convention. This intentionally does not match values
+// such as "Clustered".
+const legacyClusterSubtypeSql =
+  "LOWER(TRIM(COALESCE(tp.subkategori, ''))) REGEXP '^cluster($|[[:space:]]|[-|:])'";
+const legacyClusterCategorySql =
+  "LOWER(TRIM(COALESCE(tp.kategori, ''))) IN ('rumah cluster', 'rumah-cluster')";
+const legacySubsidizedCategorySql =
+  "LOWER(TRIM(COALESCE(tp.kategori, ''))) IN ('rumah subsidi', 'rumah-subsidi')";
 
 const allowedPropertyFields = [
   'no_folder', 'tanggal_listing', 'jenis_penawaran', 'harga_jual', 'harga_sewa',
@@ -111,8 +123,16 @@ exports.getAll = async (req, res) => {
       params.push(s, s, s, s, s, s, s);
       const searchedKategori = normalizeKategori(search);
       if (searchedKategori) {
-        sql += " OR tp.kategori = ?";
-        params.push(searchedKategori);
+        if (searchedKategori === "rumah_cluster") {
+          sql += ` OR (tp.kategori = ? OR ${legacyClusterCategorySql} OR (tp.kategori = 'rumah' AND ${legacyClusterSubtypeSql}))`;
+          params.push(searchedKategori);
+        } else if (searchedKategori === "rumah_subsidi") {
+          sql += ` OR (tp.kategori = ? OR ${legacySubsidizedCategorySql})`;
+          params.push(searchedKategori);
+        } else {
+          sql += " OR tp.kategori = ?";
+          params.push(searchedKategori);
+        }
       }
       sql += ")";
     }
@@ -123,7 +143,13 @@ exports.getAll = async (req, res) => {
       }
       if (normalizedKategori === "rumah_cluster") {
         // Include legacy values until the one-time migration has run.
-        sql += " AND (tp.kategori = ? OR (tp.kategori = 'rumah' AND LOWER(TRIM(COALESCE(tp.subkategori, ''))) REGEXP '^cluster([[:space:]]*[-|:])?'))";
+        sql += ` AND (tp.kategori = ? OR ${legacyClusterCategorySql} OR (tp.kategori = 'rumah' AND ${legacyClusterSubtypeSql}))`;
+      } else if (normalizedKategori === "rumah") {
+        // A legacy cluster was stored as Rumah + "Cluster - ...". Keep it out
+        // of the ordinary Rumah filter so type filters stay mutually exclusive.
+        sql += ` AND (tp.kategori = ? AND NOT (${legacyClusterSubtypeSql}))`;
+      } else if (normalizedKategori === "rumah_subsidi") {
+        sql += ` AND (tp.kategori = ? OR ${legacySubsidizedCategorySql})`;
       } else {
         sql += " AND tp.kategori = ?";
       }

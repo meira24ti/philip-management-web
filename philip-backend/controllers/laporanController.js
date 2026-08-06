@@ -62,11 +62,10 @@ exports.generate = async (req, res) => {
     if (tipe === "penjualan") {
       // ✅ Gunakan id_properti sesuai schema transaksi
       const [transaksi] = await pool.query(`
-        SELECT t.*, p.nama_jalan, p.kota, p.jenis_penawaran, tp.kategori, u.nama AS dicatat_oleh_nama
+        SELECT t.*, p.nama_jalan, p.kota, p.jenis_penawaran, tp.kategori
         FROM transaksi t
         JOIN properti p ON p.id_properti = t.id_properti
         LEFT JOIN tipe_properti tp ON tp.id_properti = t.id_properti
-        LEFT JOIN user u ON u.id_user = t.dicatat_oleh
         WHERE t.tanggal_transaksi >= ?
           AND t.tanggal_transaksi < DATE_ADD(?, INTERVAL 1 DAY)
         ORDER BY t.tanggal_transaksi DESC`,
@@ -154,17 +153,6 @@ exports.generate = async (req, res) => {
         GROUP BY jenis
         ORDER BY jumlah DESC`,
         [periodeStart, periodeEnd]);
-      const [byMarketing] = await pool.query(`
-        SELECT COALESCE(NULLIF(u.nama, ''), 'Belum ditetapkan') AS nama,
-               COUNT(*) AS jumlah
-        FROM transaksi t
-        LEFT JOIN user u ON u.id_user = t.dicatat_oleh
-        WHERE t.tanggal_transaksi >= ?
-          AND t.tanggal_transaksi < DATE_ADD(?, INTERVAL 1 DAY)
-        GROUP BY t.dicatat_oleh, u.nama
-        ORDER BY jumlah DESC, nama ASC
-        LIMIT 8`,
-        [periodeStart, periodeEnd]);
       const [byPenawaran] = await pool.query(`
         SELECT COALESCE(NULLIF(p.jenis_penawaran, ''), 'lainnya') AS jenis_penawaran,
                COUNT(*) AS jumlah
@@ -174,7 +162,7 @@ exports.generate = async (req, res) => {
         GROUP BY COALESCE(NULLIF(p.jenis_penawaran, ''), 'lainnya')
         ORDER BY jumlah DESC, jenis_penawaran ASC`,
         [periodeStart, periodeEnd]);
-      data = { byStatus, byTipe, byPenawaran, byJenis, byMarketing, trenBulan, summary };
+      data = { byStatus, byTipe, byPenawaran, byJenis, trenBulan, summary };
     }
 
     const reportLabel = { penjualan: "Penjualan", stok: "Stok Properti", statistik: "Statistik" }[tipe] || tipe;
