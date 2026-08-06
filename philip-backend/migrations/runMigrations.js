@@ -1,7 +1,8 @@
 const pool = require("../config/db");
 const rumahCluster = require("./20260804_add_rumah_cluster");
+const luasTanahOptional = require("./20260807_make_luas_tanah_optional");
 
-const migrations = [rumahCluster];
+const migrations = [rumahCluster, luasTanahOptional];
 
 async function runMigrations(db = pool) {
   const conn = await db.getConnection();

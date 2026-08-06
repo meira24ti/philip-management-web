@@ -5,7 +5,7 @@ const auth   = require("../middleware/auth");
 const rbac   = require("../middleware/rbac");
  
 // Helper data untuk form
-router.get("/vendors",   auth, ctrl.getVendors);       // dropdown vendor
+router.get("/vendors",   auth, rbac("admin"), ctrl.getVendors); // dropdown vendor
 router.post("/vendors",  auth, rbac("admin"), ctrl.createVendor);
 router.get("/marketing", auth, ctrl.getMarketingList); // dropdown marketing
  

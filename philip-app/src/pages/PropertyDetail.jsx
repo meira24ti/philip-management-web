@@ -4,15 +4,16 @@ import { Link, useParams } from "react-router-dom";
 import {
   HiOutlineLocationMarker, HiArrowLeft,
   HiOutlineShare, HiOutlineMap,
-  HiOutlineChevronLeft, HiOutlineChevronRight
+  HiOutlineChevronLeft, HiOutlineChevronRight, HiTag
 } from "react-icons/hi";
 import { FotoManager } from "../components/FotoManager";
 import { useAuth } from "../context/useAuth";
 import { useToast } from "../components/ToastContext";
 import { propertiService } from "../services/propertiService";
+import { authService } from "../services/authService";
 import { generateFlyerPNG, downloadFlyer } from "../utils/generateFlyer";
 import { getImageUrl } from "../utils/imageUrl";
-import { getOfferLabel } from "../utils/propertyLabels";
+import { getOfferBadgeClass, getOfferLabel } from "../utils/propertyLabels";
 import { getPropertySubtypeLabel, getPropertyTypeLabel } from "../utils/propertyTypes";
 
 // ─── Konfigurasi role ──────────────────────────────────────────
@@ -42,7 +43,7 @@ const subkategoriLabel = getPropertySubtypeLabel;
 // ─── KOMPONEN UTAMA ────────────────────────────────────────────
 export default function PropertyDetail() {
   const { id } = useParams();
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const { showToast } = useToast();
   const config = ROLE_CONFIG[role] || {};
 
@@ -114,10 +115,13 @@ export default function PropertyDetail() {
   const handleDownloadFlyer = async () => {
     try {
       setGeneratingFlyer(true);
-      const data = await propertiService.getById(id);
-      const blob = await generateFlyerPNG(data, { scale: 3 });
+      const [data, currentUser] = await Promise.all([
+        propertiService.getById(id),
+        authService.me().catch(() => user),
+      ]);
+      const blob = await generateFlyerPNG(data, { scale: 3, actor: currentUser || user });
       if (!blob) throw new Error("Blob flyer kosong");
-      downloadFlyer(blob, `flyer-${data.no_folder || data.id}.png`);
+      downloadFlyer(blob, `flyer-${data.id}.png`);
       showToast("Flyer berhasil didownload", "success");
     } catch (err) {
       console.error("Gagal generate flyer:", err);
@@ -262,7 +266,10 @@ export default function PropertyDetail() {
                 ))}
               </div>
               <div className="absolute top-3 left-3 flex gap-1.5">
-                <span className="badge badge-sm badge-error text-white">{badge}</span>
+                <span className={`badge badge-sm gap-1 ${getOfferBadgeClass(p.jenis_penawaran)}`}>
+                  <HiTag size={11} aria-hidden="true" />
+                  {badge}
+                </span>
                 <span className={`badge badge-sm ${unitClass[p.status_unit]}`}>
                   {unitLabel[p.status_unit] || p.status_unit}
                 </span>
@@ -402,7 +409,7 @@ export default function PropertyDetail() {
           </div>
 
           {/* ── Vendor ── */}
-          {p.nama_vendor && (
+          {role === "admin" && p.nama_vendor && (
             <div className="card bg-base-100 shadow border border-red-50">
               <div className="card-body p-4 gap-1.5">
                 <h3 className="font-bold text-red-900 text-sm mb-1">Data Vendor / Pemilik</h3>

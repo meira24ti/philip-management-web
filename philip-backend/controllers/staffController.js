@@ -35,10 +35,10 @@ exports.getAll = async (req, res) => {
     let sql = `
       SELECT id_user, nama, email, role, is_active, foto_profil, no_hp, created_at
       FROM user
-      WHERE 1=1
+      WHERE is_active = 1
     `;
     const params = [];
-    const { search, role, status } = req.query;
+    const { search, role } = req.query;
 
     if (search) {
       sql += " AND (nama LIKE ? OR email LIKE ?)";
@@ -49,12 +49,6 @@ exports.getAll = async (req, res) => {
       sql += " AND role = ?";
       params.push(role);
     }
-    if (status === "Aktif") {
-      sql += " AND is_active = 1";
-    } else if (status === "Nonaktif") {
-      sql += " AND is_active = 0";
-    }
-
     sql += " ORDER BY FIELD(role, 'direktur', 'admin', 'marketing'), nama";
     const [rows] = await pool.query(sql, params);
     res.json(rows);

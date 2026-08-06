@@ -54,6 +54,27 @@ const allowedPropertyFields = [
   'spanduk', 'kunci', 'feed', 'sudah_share', 'listed_by', 'id_vendor'
 ];
 
+const requiredPropertyFields = [
+  ["no_folder", "Nomor folder"],
+  ["tanggal_listing", "Tanggal listing"],
+  ["nama_jalan", "Alamat properti"],
+  ["kota", "Kota"],
+  ["listed_by", "Marketing listing"],
+  ["status_unit", "Status unit"],
+];
+
+const validUnitStatuses = ["tersedia", "terjual", "tersewa", "negosiasi"];
+
+const findMissingRequiredPropertyField = (data) =>
+  requiredPropertyFields.find(([field]) => !String(data[field] || "").trim());
+
+const canViewOwnerData = (req) => req.user?.role === "admin";
+
+const hideOwnerData = (property) => {
+  const { id_vendor, nama_vendor, vendor_hp, ...safeProperty } = property;
+  return safeProperty;
+};
+
 // Vendor dapat diketik langsung di form. Nama yang sudah ada dipakai ulang;
 // nama baru dibuat otomatis dalam transaksi yang sama dengan properti.
 const resolveVendorId = async (db, data, existingVendorId = null) => {
@@ -101,26 +122,31 @@ exports.getAll = async (req, res) => {
   try {
     const { search, jenis, kota, statusUnit, ltMin, ltMax, hargaMin, hargaMax,
             listedBy, dari, sampai, kategori } = req.query;
+    const includeOwnerData = canViewOwnerData(req);
 
     // ✅ ALIAS p.id_properti AS id
     let sql = `
       SELECT p.id_properti AS id, p.*,
         tp.kategori, tp.subkategori, tp.jumlah_unit,
         fp.url_foto AS cover_foto,
-        v.nama_vendor, v.no_hp AS vendor_hp,
+        ${includeOwnerData ? "v.nama_vendor, v.no_hp AS vendor_hp," : ""}
         u.nama AS listed_by_nama, u.no_hp AS listed_by_hp
       FROM properti p
       LEFT JOIN tipe_properti tp ON tp.id_properti = p.id_properti
       LEFT JOIN foto_properti fp ON fp.id_properti = p.id_properti AND fp.is_cover = 1
-      LEFT JOIN vendor v ON v.id_vendor = p.id_vendor
+      ${includeOwnerData ? "LEFT JOIN vendor v ON v.id_vendor = p.id_vendor" : ""}
       LEFT JOIN user u ON u.id_user = p.listed_by
       WHERE 1=1`;
     const params = [];
 
     if (search) {
-      sql += " AND (p.no_folder LIKE ? OR p.nama_jalan LIKE ? OR p.area_kecamatan LIKE ? OR p.kota LIKE ? OR tp.kategori LIKE ? OR tp.subkategori LIKE ? OR v.nama_vendor LIKE ?";
+      sql += " AND (p.no_folder LIKE ? OR p.nama_jalan LIKE ? OR p.area_kecamatan LIKE ? OR p.kota LIKE ? OR tp.kategori LIKE ? OR tp.subkategori LIKE ?";
       const s = `%${search}%`;
-      params.push(s, s, s, s, s, s, s);
+      params.push(s, s, s, s, s, s);
+      if (includeOwnerData) {
+        sql += " OR v.nama_vendor LIKE ?";
+        params.push(s);
+      }
       const searchedKategori = normalizeKategori(search);
       if (searchedKategori) {
         if (searchedKategori === "rumah_cluster") {
@@ -168,7 +194,7 @@ exports.getAll = async (req, res) => {
 
     sql += " ORDER BY p.created_at DESC";
     const [rows] = await pool.query(sql, params);
-    res.json(rows);
+    res.json(includeOwnerData ? rows : rows.map(hideOwnerData));
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -178,15 +204,16 @@ exports.getAll = async (req, res) => {
 // ─── GET /api/properti/:id ────────────────────────────────────
 exports.getById = async (req, res) => {
   try {
+    const includeOwnerData = canViewOwnerData(req);
     // ✅ ALIAS p.id_properti AS id
     const [rows] = await pool.query(`
       SELECT p.id_properti AS id, p.*,
         tp.kategori, tp.subkategori, tp.jumlah_unit, tp.jumlah_kapling,
-        v.nama_vendor, v.no_hp AS vendor_hp,
+        ${includeOwnerData ? "v.nama_vendor, v.no_hp AS vendor_hp," : ""}
         u.nama AS listed_by_nama, u.no_hp AS listed_by_hp
       FROM properti p
       LEFT JOIN tipe_properti tp ON tp.id_properti = p.id_properti
-      LEFT JOIN vendor v ON v.id_vendor = p.id_vendor
+      ${includeOwnerData ? "LEFT JOIN vendor v ON v.id_vendor = p.id_vendor" : ""}
       LEFT JOIN user u ON u.id_user = p.listed_by
       WHERE p.id_properti = ?`, [req.params.id]);
 
@@ -197,7 +224,8 @@ exports.getById = async (req, res) => {
       "SELECT * FROM foto_properti WHERE id_properti = ? ORDER BY urutan ASC",
       [req.params.id]
     );
-    res.json({ ...rows[0], foto_properti: fotos });
+    const property = includeOwnerData ? rows[0] : hideOwnerData(rows[0]);
+    res.json({ ...property, foto_properti: fotos });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -207,6 +235,9 @@ exports.getById = async (req, res) => {
 // ─── GET /api/properti/vendors ───────────────────────────────
 exports.getVendors = async (req, res) => {
   try {
+    if (!canViewOwnerData(req)) {
+      return res.status(403).json({ message: "Akses ditolak" });
+    }
     const [rows] = await pool.query("SELECT id_vendor, nama_vendor, no_hp FROM vendor ORDER BY nama_vendor");
     res.json(rows);
   } catch (err) {
@@ -271,15 +302,7 @@ exports.create = async (req, res) => {
       }
     }
 
-    const requiredFields = [
-      ["no_folder", "Nomor folder"],
-      ["tanggal_listing", "Tanggal listing"],
-      ["nama_jalan", "Alamat properti"],
-      ["kota", "Kota"],
-      ["luas_tanah", "Luas tanah"],
-      ["listed_by", "Marketing listing"],
-    ];
-    const missingField = requiredFields.find(([field]) => !String(propertiData[field] || "").trim());
+    const missingField = findMissingRequiredPropertyField(propertiData);
     if (missingField) {
       const error = new Error(`${missingField[1]} wajib diisi`);
       error.statusCode = 400;
@@ -287,6 +310,11 @@ exports.create = async (req, res) => {
     }
     if (!["dijual", "disewa", "dijual_dan_disewa"].includes(propertiData.jenis_penawaran)) {
       const error = new Error("Jenis penawaran tidak valid");
+      error.statusCode = 400;
+      throw error;
+    }
+    if (!validUnitStatuses.includes(propertiData.status_unit)) {
+      const error = new Error("Status unit tidak valid");
       error.statusCode = 400;
       throw error;
     }
@@ -400,6 +428,17 @@ exports.update = async (req, res) => {
       throw error;
     }
 
+    const [existingProperties] = await conn.query(
+      "SELECT * FROM properti WHERE id_properti = ? LIMIT 1",
+      [propertiId]
+    );
+    if (!existingProperties.length) {
+      const error = new Error("Properti tidak ditemukan");
+      error.statusCode = 404;
+      throw error;
+    }
+    const existingProperty = existingProperties[0];
+
     const updateData = {};
     for (const key of allowedPropertyFields) {
       if (req.body[key] !== undefined) {
@@ -438,12 +477,6 @@ exports.update = async (req, res) => {
       }
     }
 
-    if (updateData.jenis_penawaran !== undefined && !["dijual", "disewa", "dijual_dan_disewa"].includes(updateData.jenis_penawaran)) {
-      const error = new Error("Jenis penawaran tidak valid");
-      error.statusCode = 400;
-      throw error;
-    }
-
     const numericFields = ['harga_jual', 'harga_sewa', 'luas_tanah', 'luas_bangunan',
       'kamar_tidur', 'kamar_mandi', 'latitude', 'longtitude'];
     for (const nf of numericFields) {
@@ -465,6 +498,34 @@ exports.update = async (req, res) => {
       if (updateData[field] !== undefined) {
         updateData[field] = toSqlBoolean(updateData[field]);
       }
+    }
+
+    const nextProperty = { ...existingProperty, ...updateData };
+    const missingField = findMissingRequiredPropertyField(nextProperty);
+    if (missingField) {
+      const error = new Error(`${missingField[1]} wajib diisi`);
+      error.statusCode = 400;
+      throw error;
+    }
+    if (!["dijual", "disewa", "dijual_dan_disewa"].includes(nextProperty.jenis_penawaran)) {
+      const error = new Error("Jenis penawaran tidak valid");
+      error.statusCode = 400;
+      throw error;
+    }
+    if (!validUnitStatuses.includes(nextProperty.status_unit)) {
+      const error = new Error("Status unit tidak valid");
+      error.statusCode = 400;
+      throw error;
+    }
+    if (["dijual", "dijual_dan_disewa"].includes(nextProperty.jenis_penawaran) && !nextProperty.harga_jual) {
+      const error = new Error("Harga jual wajib diisi untuk properti yang dijual");
+      error.statusCode = 400;
+      throw error;
+    }
+    if (["disewa", "dijual_dan_disewa"].includes(nextProperty.jenis_penawaran) && !nextProperty.harga_sewa) {
+      const error = new Error("Harga sewa wajib diisi untuk properti yang disewakan");
+      error.statusCode = 400;
+      throw error;
     }
 
     updateData.updated_at = new Date();
@@ -568,11 +629,11 @@ exports.getShareText = async (req, res) => {
     const [rows] = await pool.query(`
       SELECT p.id_properti AS id, p.*,
         tp.kategori, tp.subkategori,
-        u.nama AS listed_by_nama, u.no_hp AS listed_by_hp
+        sharer.nama AS shared_by_nama, sharer.no_hp AS shared_by_hp
       FROM properti p
       LEFT JOIN tipe_properti tp ON tp.id_properti = p.id_properti
-      LEFT JOIN user u ON u.id_user = p.listed_by
-      WHERE p.id_properti = ?`, [req.params.id]);
+      LEFT JOIN user sharer ON sharer.id_user = ?
+      WHERE p.id_properti = ?`, [req.user.id, req.params.id]);
 
     if (!rows.length) return res.status(404).json({ message: "Properti tidak ditemukan" });
 
@@ -583,20 +644,23 @@ exports.getShareText = async (req, res) => {
       disewa: "DISEWAKAN",
       dijual_dan_disewa: "DIJUAL & DISEWAKAN",
     }[p.jenis_penawaran] || "PENAWARAN";
+    const isForSale = ["dijual", "dijual_dan_disewa"].includes(p.jenis_penawaran);
+    const isForRent = ["disewa", "dijual_dan_disewa"].includes(p.jenis_penawaran);
 
     const text = [
       `*${kategoriLabel(p.kategori, p.subkategori).toUpperCase()} ${offerLabel}*`,
       `📍 ${p.nama_jalan}, ${p.kota}`,
-      fmt(p.harga_jual)  ? `💰 Harga Jual: ${fmt(p.harga_jual)}` : null,
-      fmt(p.harga_sewa)  ? `🏠 Sewa: ${fmt(p.harga_sewa)}/thn`   : null,
-      `📐 LT: ${p.luas_tanah}m²${p.luas_bangunan ? " | LB: "+p.luas_bangunan+"m²" : ""}`,
+      isForSale && fmt(p.harga_jual) ? `💰 Harga Jual: ${fmt(p.harga_jual)}` : null,
+      isForRent && fmt(p.harga_sewa) ? `🏠 Sewa: ${fmt(p.harga_sewa)}/thn` : null,
+      p.luas_tanah || p.luas_bangunan
+        ? `📐${p.luas_tanah ? ` LT: ${p.luas_tanah}m²` : ""}${p.luas_bangunan ? `${p.luas_tanah ? " |" : ""} LB: ${p.luas_bangunan}m²` : ""}`
+        : null,
       p.kamar_tidur ? `🛏 KT: ${p.kamar_tidur} | 🚿 KM: ${p.kamar_mandi}` : null,
       `📜 Sertifikat: ${p.sertifikat || "-"}`,
       `🏙 ${p.kota}`,
-      p.gmaps_url ? `📌 Maps: ${p.gmaps_url}` : null,
       "",
       "Untuk informasi dan jadwal survei:",
-      p.listed_by_nama ? "Marketing: " + p.listed_by_nama + (p.listed_by_hp ? " (" + p.listed_by_hp + ")" : "") : "Hubungi Philip Real Estate",
+      p.shared_by_nama ? "Marketing: " + p.shared_by_nama + (p.shared_by_hp ? " (" + p.shared_by_hp + ")" : "") : "Hubungi Philip Real Estate",
     ].filter(Boolean).join("\n");
 
     res.json({ shareText: text, waLink: `https://wa.me/?text=${encodeURIComponent(text)}` });

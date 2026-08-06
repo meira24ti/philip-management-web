@@ -11,7 +11,7 @@ import { authService } from "../services/authService";
 import { getImageUrl } from "../utils/imageUrl";
 
 export default function Settings() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { showToast } = useToast();
 
   const role = user?.role || "";
@@ -156,10 +156,11 @@ export default function Settings() {
         setFotoFile(null);
       }
 
-      await authService.updateProfile({
+      const response = await authService.updateProfile({
         nama: profile.nama,
         no_hp: profile.no_hp,
       });
+      updateUser(response.user);
 
       showToast("Profil berhasil diperbarui", "success");
       setSaved(true);

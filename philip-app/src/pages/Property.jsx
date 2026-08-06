@@ -5,7 +5,7 @@ import { useAuth } from "../context/useAuth";
 import { useToast } from "../components/ToastContext";
 import { propertiService } from "../services/propertiService";
 import { getImageUrl } from "../utils/imageUrl";
-import { getOfferLabel } from "../utils/propertyLabels";
+import { getOfferBadgeClass, getOfferLabel } from "../utils/propertyLabels";
 import {
   PROPERTY_TYPE_OPTIONS,
   getPropertySubtypeLabel,
@@ -42,6 +42,17 @@ const unitLabel = {
   tersewa: "Tersewa",
   negosiasi: "Negosiasi"
 };
+
+const FORM_LABEL_CLASS = "text-xs font-semibold text-gray-600";
+
+function FieldLabel({ children, required = false }) {
+  return (
+    <span className={FORM_LABEL_CLASS}>
+      {children}
+      {required ? <span className="text-error"> *</span> : <span className="font-normal text-gray-400"> (Opsional)</span>}
+    </span>
+  );
+}
 
 // ── FORM ──────────────────────────────────────────────────────
 function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketings, onCreateVendor }) {
@@ -101,21 +112,23 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
 
   const inputCls = "input input-bordered input-sm w-full rounded-xl";
   const selectCls = "select select-bordered select-sm w-full rounded-xl";
-  const labelCls = "text-xs font-semibold text-gray-600";
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5 max-h-[75vh] overflow-y-auto pr-1">
+      <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <span className="font-bold text-error">*</span> wajib diisi. Kolom bertanda <span className="font-semibold">(Opsional)</span> boleh dikosongkan.
+      </p>
       {/* ─── Identitas ─────────────────────────────────────────── */}
       <div>
         <p className="text-sm font-bold text-red-900 mb-2">Identitas Unit</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="form-control">
-            <div className="label py-0.5"><span className={labelCls}>No. Folder</span></div>
+            <div className="label py-0.5"><FieldLabel required>No. Folder</FieldLabel></div>
             <input className={inputCls} value={form.no_folder}
               onChange={e => set("no_folder", e.target.value)} placeholder="PRE-001" required />
           </label>
           <label className="form-control">
-            <div className="label py-0.5"><span className={labelCls}>Tanggal Listing *</span></div>
+            <div className="label py-0.5"><FieldLabel required>Tanggal Listing</FieldLabel></div>
             <input type="date" className={inputCls} value={form.tanggal_listing}
               onChange={e => set("tanggal_listing", e.target.value)} required />
           </label>
@@ -127,7 +140,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
         <p className="text-sm font-bold text-red-900 mb-2">Tipe Properti</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="form-control">
-            <div className="label py-0.5"><span className={labelCls}>Kategori *</span></div>
+            <div className="label py-0.5"><FieldLabel required>Kategori</FieldLabel></div>
             <select className={selectCls} value={form.kategori}
               onChange={e => set("kategori", e.target.value)} required>
               {PROPERTY_TYPE_OPTIONS.map(({ value, label }) => (
@@ -136,7 +149,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
             </select>
           </label>
           <label className="form-control">
-            <div className="label py-0.5"><span className={labelCls}>Subkategori</span></div>
+            <div className="label py-0.5"><FieldLabel>Subkategori</FieldLabel></div>
             <select className={selectCls} value={form.subkategori}
               onChange={e => set("subkategori", e.target.value)}>
               <option value="">Pilih subkategori</option>
@@ -152,7 +165,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
         <p className="text-sm font-bold text-red-900 mb-2">Data Vendor & Marketing</p>
         <div className="grid grid-cols-1 gap-3">
           <label className="form-control">
-            <div className="label py-0.5"><span className={labelCls}>Vendor / Pemilik Properti *</span></div>
+            <div className="label py-0.5"><FieldLabel required>Vendor / Pemilik Properti</FieldLabel></div>
             <input className={inputCls} value={form.nama_vendor} onChange={e => set("nama_vendor", e.target.value)} placeholder="Nama lengkap pemilik" required />
             <select className={`hidden ${selectCls}`} value={form.id_vendor}
               onChange={e => set("id_vendor", e.target.value)}>
@@ -163,7 +176,8 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
                 </option>
               ))}
             </select>
-            <input type="tel" className={`${inputCls} mt-2`} value={form.vendor_hp} onChange={e => set("vendor_hp", e.target.value)} placeholder="Nomor HP vendor" required />
+            <div className="label py-0.5 mt-1"><FieldLabel required>Nomor HP Vendor</FieldLabel></div>
+            <input type="tel" className={inputCls} value={form.vendor_hp} onChange={e => set("vendor_hp", e.target.value)} placeholder="Nomor HP vendor" required />
             <div className="hidden">
               <span className="label-text-alt text-xs text-gray-400">
                 Vendor belum ada?{" "}
@@ -180,7 +194,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
               <div className="rounded-xl border border-red-100 bg-red-50/50 p-3 space-y-2">
                 <div className="grid grid-cols-1 gap-2">
                   <label className="form-control">
-                    <div className="label py-0.5"><span className={labelCls}>Nama Vendor *</span></div>
+                    <div className="label py-0.5"><FieldLabel required>Nama Vendor</FieldLabel></div>
                     <input
                       className={inputCls}
                       value={vendorDraft.nama_vendor}
@@ -190,7 +204,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
                     />
                   </label>
                   <label className="form-control">
-                    <div className="label py-0.5"><span className={labelCls}>Nomor HP</span></div>
+                    <div className="label py-0.5"><FieldLabel>Nomor HP</FieldLabel></div>
                     <input
                       className={inputCls}
                       value={vendorDraft.no_hp}
@@ -231,7 +245,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
           </label>
 
           <label className="form-control">
-            <div className="label py-0.5"><span className={labelCls}>Listing oleh (Marketing) *</span></div>
+            <div className="label py-0.5"><FieldLabel required>Listing oleh (Marketing)</FieldLabel></div>
             <select className={selectCls} value={form.listed_by}
               onChange={e => set("listed_by", e.target.value)} required>
               <option value="">Pilih marketing...</option>
@@ -248,18 +262,18 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
         <p className="text-sm font-bold text-red-900 mb-2">Lokasi</p>
         <div className="grid grid-cols-1 gap-3">
           <label className="form-control">
-            <div className="label py-0.5"><span className={labelCls}>Nama Jalan / Alamat *</span></div>
+            <div className="label py-0.5"><FieldLabel required>Nama Jalan / Alamat</FieldLabel></div>
             <input className={inputCls} value={form.nama_jalan}
               onChange={e => set("nama_jalan", e.target.value)} placeholder="Jl. Sudirman No. 10" required />
           </label>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="form-control">
-              <div className="label py-0.5"><span className={labelCls}>Area / Kecamatan</span></div>
+              <div className="label py-0.5"><FieldLabel>Area / Kecamatan</FieldLabel></div>
               <input className={inputCls} value={form.area_kecamatan}
                 onChange={e => set("area_kecamatan", e.target.value)} placeholder="Tampan" />
             </label>
             <label className="form-control">
-              <div className="label py-0.5"><span className={labelCls}>Kota *</span></div>
+              <div className="label py-0.5"><FieldLabel required>Kota</FieldLabel></div>
               <select className={selectCls} value={form.kota}
                 onChange={e => set("kota", e.target.value)} required>
                 {["Pekanbaru", "Kampar", "Siak", "Pelalawan", "Lainnya"].map(k => <option key={k}>{k}</option>)}
@@ -274,7 +288,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
         <p className="text-sm font-bold text-red-900 mb-2">Penawaran & Harga</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="form-control col-span-1 sm:col-span-2">
-            <div className="label py-0.5"><span className={labelCls}>Jenis Penawaran *</span></div>
+            <div className="label py-0.5"><FieldLabel required>Jenis Penawaran</FieldLabel></div>
             <select className={selectCls} value={form.jenis_penawaran}
               onChange={e => set("jenis_penawaran", e.target.value)} required>
               <option value="dijual">Dijual</option>
@@ -284,16 +298,16 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
           </label>
           {(form.jenis_penawaran === "dijual" || form.jenis_penawaran === "dijual_dan_disewa") && (
             <label className="form-control">
-              <div className="label py-0.5"><span className={labelCls}>Harga Jual (Rp)</span></div>
+              <div className="label py-0.5"><FieldLabel required>Harga Jual (Rp)</FieldLabel></div>
               <input type="number" className={inputCls} value={form.harga_jual}
-                onChange={e => set("harga_jual", e.target.value)} placeholder="1500000000" />
+                onChange={e => set("harga_jual", e.target.value)} placeholder="1500000000" required />
             </label>
           )}
           {(form.jenis_penawaran === "disewa" || form.jenis_penawaran === "dijual_dan_disewa") && (
             <label className="form-control">
-              <div className="label py-0.5"><span className={labelCls}>Harga Sewa/Thn (Rp)</span></div>
+              <div className="label py-0.5"><FieldLabel required>Harga Sewa/Thn (Rp)</FieldLabel></div>
               <input type="number" className={inputCls} value={form.harga_sewa}
-                onChange={e => set("harga_sewa", e.target.value)} placeholder="30000000" />
+                onChange={e => set("harga_sewa", e.target.value)} placeholder="30000000" required />
             </label>
           )}
         </div>
@@ -304,22 +318,22 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
         <p className="text-sm font-bold text-red-900 mb-2">Ukuran</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="form-control">
-            <div className="label py-0.5"><span className={labelCls}>Luas Tanah m² *</span></div>
+            <div className="label py-0.5"><FieldLabel>Luas Tanah m²</FieldLabel></div>
             <input type="number" className={inputCls} value={form.luas_tanah}
-              onChange={e => set("luas_tanah", e.target.value)} required />
+              onChange={e => set("luas_tanah", e.target.value)} />
           </label>
           <label className="form-control">
-            <div className="label py-0.5"><span className={labelCls}>Luas Bangunan m²</span></div>
+            <div className="label py-0.5"><FieldLabel>Luas Bangunan m²</FieldLabel></div>
             <input type="number" className={inputCls} value={form.luas_bangunan}
               onChange={e => set("luas_bangunan", e.target.value)} />
           </label>
           <label className="form-control">
-            <div className="label py-0.5"><span className={labelCls}>Kamar Tidur</span></div>
+            <div className="label py-0.5"><FieldLabel>Kamar Tidur</FieldLabel></div>
             <input type="number" min="0" className={inputCls} value={form.kamar_tidur}
               onChange={e => set("kamar_tidur", e.target.value)} />
           </label>
           <label className="form-control">
-            <div className="label py-0.5"><span className={labelCls}>Kamar Mandi</span></div>
+            <div className="label py-0.5"><FieldLabel>Kamar Mandi</FieldLabel></div>
             <input type="number" min="0" className={inputCls} value={form.kamar_mandi}
               onChange={e => set("kamar_mandi", e.target.value)} />
           </label>
@@ -337,7 +351,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
             ["keamanan", "Keamanan", ["Tidak ada", "Security 24 jam", "One Gate System", "CCTV", "Security + One Gate"]],
           ].map(([key, label, opts]) => (
             <label key={key} className="form-control">
-              <div className="label py-0.5"><span className={labelCls}>{label}</span></div>
+              <div className="label py-0.5"><FieldLabel>{label}</FieldLabel></div>
               <select className={selectCls} value={form[key]} onChange={e => set(key, e.target.value)}>
                 <option value="">Pilih {label.toLowerCase()}</option>
                 {opts.map(o => <option key={o}>{o}</option>)}
@@ -352,19 +366,19 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
         <p className="text-sm font-bold text-red-900 mb-2">Bonus & Fasilitas</p>
         <div className="space-y-3">
           <label className="form-control">
-            <div className="label py-0.5"><span className={labelCls}>Daftar Bonus</span></div>
+            <div className="label py-0.5"><FieldLabel>Daftar Bonus</FieldLabel></div>
             <textarea className="textarea textarea-bordered textarea-sm w-full rounded-xl" rows={2}
               value={form.daftar_bonus} onChange={e => set("daftar_bonus", e.target.value)}
               placeholder="Kitchen Set, Mesin Air, Kanopi, ..." />
           </label>
           <label className="form-control">
-            <div className="label py-0.5"><span className={labelCls}>Akses Fasilitas Terdekat</span></div>
+            <div className="label py-0.5"><FieldLabel>Akses Fasilitas Terdekat</FieldLabel></div>
             <textarea className="textarea textarea-bordered textarea-sm w-full rounded-xl" rows={2}
               value={form.akses_fasilitas} onChange={e => set("akses_fasilitas", e.target.value)}
               placeholder="Sekolah, RS, Mall, SPBU, ..." />
           </label>
           <label className="form-control">
-            <div className="label py-0.5"><span className={labelCls}>Keterangan Tambahan</span></div>
+            <div className="label py-0.5"><FieldLabel>Keterangan Tambahan</FieldLabel></div>
             <textarea className="textarea textarea-bordered textarea-sm w-full rounded-xl" rows={2}
               value={form.keterangan} onChange={e => set("keterangan", e.target.value)} />
           </label>
@@ -386,7 +400,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
         </div>
         <div className="mt-3">
           <label className="form-control">
-            <div className="label py-0.5"><span className={labelCls}>Status Unit *</span></div>
+            <div className="label py-0.5"><FieldLabel required>Status Unit</FieldLabel></div>
             <select className={selectCls} value={form.status_unit}
               onChange={e => set("status_unit", e.target.value)} required>
               <option value="tersedia">Tersedia</option>
@@ -400,7 +414,7 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
 
       {/* ─── Foto ────────────────────────────────────────────── */}
       <div>
-        <p className="text-sm font-bold text-red-900 mb-2">Foto Properti</p>
+        <p className="text-sm font-bold text-red-900 mb-2">Foto Properti <span className="text-xs font-normal text-gray-400">(Opsional)</span></p>
         <input type="file" accept="image/*" multiple
           className="file-input file-input-bordered file-input-sm file-input-error rounded-xl w-full"
           onChange={e => setFotos(Array.from(e.target.files))} />
@@ -422,17 +436,17 @@ function PropertyForm({ initial, onSubmit, onCancel, loading, vendors, marketing
         <p className="text-sm font-bold text-red-900 mb-2">Lokasi Google Maps</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="hidden">
-            <div className="label py-0.5"><span className={labelCls}>Latitude</span></div>
+            <div className="label py-0.5"><FieldLabel>Latitude</FieldLabel></div>
             <input className={inputCls} value={form.latitude}
               onChange={e => set("latitude", e.target.value)} placeholder="-0.5071" />
           </label>
           <label className="hidden">
-            <div className="label py-0.5"><span className={labelCls}>Longitude</span></div>
+            <div className="label py-0.5"><FieldLabel>Longitude</FieldLabel></div>
             <input className={inputCls} value={form.longtitude}
               onChange={e => set("longtitude", e.target.value)} placeholder="101.4478" />
           </label>
           <label className="form-control col-span-1 sm:col-span-2">
-            <div className="label py-0.5"><span className={labelCls}>Link Google Maps</span></div>
+            <div className="label py-0.5"><FieldLabel>Link Google Maps</FieldLabel></div>
             <input className={inputCls} value={form.gmaps_url}
               onChange={e => set("gmaps_url", e.target.value)} placeholder="https://maps.google.com/..." />
           </label>
@@ -521,6 +535,7 @@ export default function Property() {
 
   // ─── Load data vendor & marketing ──────────────────────────
   const loadVendorsAndMarketings = useCallback(async () => {
+    if (!config.canEdit) return;
     try {
       const [v, m] = await Promise.all([
         propertiService.getVendors(),
@@ -531,7 +546,7 @@ export default function Property() {
     } catch {
       // Jika gagal load, tetap bisa lanjut (dropdown kosong)
     }
-  }, []);
+  }, [config.canEdit]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -877,7 +892,10 @@ export default function Property() {
                   onError={e => e.target.src = "https://placehold.co/400x200/7A0000/white?text=Foto"}
                 />
                 <div className="absolute top-2 left-2">
-                  <span className="badge badge-sm badge-error text-white">{getOfferLabel(p.jenis_penawaran)}</span>
+                  <span className={`badge badge-sm gap-1 ${getOfferBadgeClass(p.jenis_penawaran)}`}>
+                    <HiTag size={11} aria-hidden="true" />
+                    {getOfferLabel(p.jenis_penawaran)}
+                  </span>
                 </div>
                 <div className="absolute top-2 right-2">
                   <span className={`badge badge-sm ${unitClass[p.status_unit]}`}>{unitLabel[p.status_unit]}</span>

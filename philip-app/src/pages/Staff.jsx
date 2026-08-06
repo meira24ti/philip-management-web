@@ -77,7 +77,7 @@ function StaffCard({ staff, canManage, actorRole, onEdit, onDeactivate, compact 
       className={[
         "card bg-base-100 border shadow-sm transition-all duration-200",
         "hover:-translate-y-1 hover:shadow-lg",
-        staff.is_active ? "border-red-50" : "border-gray-100 opacity-70",
+        "border-red-50",
         compact ? "w-[calc(100vw-3rem)] max-w-80 shrink-0 snap-start sm:w-80" : "w-full",
       ].join(" ")}
     >
@@ -101,9 +101,7 @@ function StaffCard({ staff, canManage, actorRole, onEdit, onDeactivate, compact 
               </span>
             </div>
 
-            <span className={`badge badge-sm mt-2 ${staff.is_active ? "badge-success" : "badge-ghost"}`}>
-              {staff.is_active ? "Aktif" : "Nonaktif"}
-            </span>
+            <span className="badge badge-sm mt-2 badge-success">Aktif</span>
           </div>
         </div>
 
@@ -138,7 +136,7 @@ function StaffCard({ staff, canManage, actorRole, onEdit, onDeactivate, compact 
             </a>
           </div>
 
-          {canManageStaff && staff.is_active && (
+          {canManageStaff && (
             <div className="flex gap-1">
               <button
                 onClick={() => onEdit(staff)}
@@ -322,7 +320,6 @@ export default function Staff() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("Semua");
-  const [statusFilter, setStatus] = useState("Aktif");
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState(null);
@@ -348,7 +345,7 @@ export default function Staff() {
     try {
       setLoading(true);
       const data = await staffService.getAll();
-      setStaffData(data);
+      setStaffData((Array.isArray(data) ? data : []).filter((staff) => Boolean(staff.is_active)));
     } catch (err) {
       console.error(err);
       showToast("Gagal memuat data staff", "error");
@@ -367,8 +364,6 @@ export default function Staff() {
   // ─── Stats ──────────────────────────────────────────────
   const stats = useMemo(() => ({
     total: staffData.length,
-    active: staffData.filter((s) => Boolean(s.is_active)).length,
-    inactive: staffData.filter((s) => !s.is_active).length,
     marketing: staffData.filter((s) => s.role === "marketing").length,
   }), [staffData]);
 
@@ -377,9 +372,7 @@ export default function Staff() {
     const q = search.toLowerCase();
     const matchQ = staff.nama?.toLowerCase().includes(q) || staff.email?.toLowerCase().includes(q) || false;
     const matchR = roleFilter === "Semua" || staff.role === roleFilter;
-    const matchS = statusFilter === "Semua" ||
-      (statusFilter === "Aktif" ? staff.is_active : !staff.is_active);
-    return matchQ && matchR && matchS;
+    return matchQ && matchR;
   });
 
   const groupedStaff = roleOrder.reduce((groups, role) => {
@@ -501,11 +494,9 @@ export default function Staff() {
       </div>
 
       {/* ── Stats ── */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3">
         {[
           { label: "Total Staff", value: stats.total, bg: "bg-red-50", text: "text-red-800" },
-          { label: "Staff Aktif", value: stats.active, bg: "bg-green-50", text: "text-green-700" },
-          { label: "Staff Nonaktif", value: stats.inactive, bg: "bg-gray-100", text: "text-gray-600" },
           { label: "Total Marketing", value: stats.marketing, bg: "bg-blue-50", text: "text-blue-700" },
         ].map((stat) => (
           <div key={stat.label} className={`${stat.bg} rounded-2xl border border-white p-4 shadow-sm`}>
@@ -544,14 +535,6 @@ export default function Staff() {
               <option value="admin">Admin</option>
               <option value="marketing">Marketing</option>
               <option value="direktur">Direktur</option>
-            </select>
-          </label>
-          <label className="min-w-32 flex-1 sm:flex-none">
-            <span className="sr-only">Filter status</span>
-            <select value={statusFilter} onChange={(event) => setStatus(event.target.value)} className="select select-bordered select-sm w-full rounded-xl border-red-100 bg-white text-sm font-medium text-gray-700 focus:border-red-400">
-              <option value="Semua">Semua status</option>
-              <option value="Aktif">Aktif</option>
-              <option value="Nonaktif">Nonaktif</option>
             </select>
           </label>
         </div>

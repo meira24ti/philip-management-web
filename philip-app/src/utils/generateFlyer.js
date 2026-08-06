@@ -3,22 +3,25 @@ import { getPropertyTypeLabel } from "./propertyTypes";
 
 const WIDTH = 1080;
 const HEIGHT = 1920;
-const MAROON = "#870014";
-const DEEP_MAROON = "#5e0010";
-const CREAM = "#fffaf6";
-
-const categoryLabel = (value, subcategory = "") =>
-  getPropertyTypeLabel(value, subcategory).toUpperCase();
+const MAROON = "#7E0015";
+const DEEP_MAROON = "#5A0010";
+const CREAM = "#FFF9F4";
+const ACCENT_YELLOW = "#FACC15";
+const ACCENT_RED = "#DC2626";
 
 const offerLabel = (value) => ({
   dijual: "DIJUAL",
   disewa: "DISEWAKAN",
-  dijual_dan_disewa: "DIJUAL & DISEWAKAN",
+  dijual_dan_disewa: "DIJUAL / DISEWAKAN",
 }[value] || "DIJUAL");
 
-const formatPrice = (value, suffix = "") => value
-  ? "Rp." + Number(value).toLocaleString("id-ID") + suffix
-  : null;
+const hasValue = (value) => value !== null && value !== undefined && String(value).trim() !== "";
+
+const formatPrice = (value, suffix = "") => (
+  hasValue(value) ? `Rp.${Number(value).toLocaleString("id-ID")}${suffix}` : null
+);
+
+const formatMetric = (value) => (hasValue(value) ? `${value} m²` : null);
 
 function roundedRect(ctx, x, y, width, height, radius) {
   ctx.beginPath();
@@ -36,23 +39,21 @@ function roundedRect(ctx, x, y, width, height, radius) {
 
 function drawCover(ctx, image, x, y, width, height) {
   if (!image) {
-    const gradient = ctx.createLinearGradient(x, y, x + width, y + height);
-    gradient.addColorStop(0, "#b78a78");
-    gradient.addColorStop(1, "#493632");
-    ctx.fillStyle = gradient;
+    const fallback = ctx.createLinearGradient(x, y, x + width, y + height);
+    fallback.addColorStop(0, "#5D302B");
+    fallback.addColorStop(1, "#241116");
+    ctx.fillStyle = fallback;
     ctx.fillRect(x, y, width, height);
-    ctx.fillStyle = "rgba(255,255,255,0.82)";
-    ctx.font = "700 28px Arial, Helvetica, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("FOTO PROPERTI", x + width / 2, y + height / 2);
     return;
   }
+
   const imageRatio = image.width / image.height;
   const targetRatio = width / height;
   let sourceX = 0;
   let sourceY = 0;
   let sourceWidth = image.width;
   let sourceHeight = image.height;
+
   if (imageRatio > targetRatio) {
     sourceWidth = image.height * targetRatio;
     sourceX = (image.width - sourceWidth) / 2;
@@ -60,6 +61,7 @@ function drawCover(ctx, image, x, y, width, height) {
     sourceHeight = image.width / targetRatio;
     sourceY = (image.height - sourceHeight) / 2;
   }
+
   ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, x, y, width, height);
 }
 
@@ -74,11 +76,14 @@ function drawPhoto(ctx, image, x, y, width, height, radius = 0) {
 }
 
 function drawCheck(ctx, x, y) {
-  ctx.strokeStyle = CREAM;
-  ctx.lineWidth = 5;
+  ctx.fillStyle = ACCENT_YELLOW;
   ctx.beginPath();
-  ctx.arc(x, y, 16, 0, Math.PI * 2);
-  ctx.stroke();
+  ctx.arc(x, y, 18, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = MAROON;
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
   ctx.beginPath();
   ctx.moveTo(x - 8, y);
   ctx.lineTo(x - 2, y + 7);
@@ -87,13 +92,52 @@ function drawCheck(ctx, x, y) {
 }
 
 function fitText(ctx, text, maxWidth) {
-  let value = String(text || "-");
-  while (value.length > 1 && ctx.measureText(value).width > maxWidth) value = value.slice(0, -2) + "...";
-  return value;
+  const fullText = String(text || "").trim();
+  if (!fullText) return "";
+  if (ctx.measureText(fullText).width <= maxWidth) return fullText;
+
+  let value = fullText;
+  while (value.length > 1 && ctx.measureText(`${value}...`).width > maxWidth) {
+    value = value.slice(0, -1);
+  }
+  return `${value.trim()}...`;
 }
 
-async function loadImage(url) {
-  if (!url) return null;
+function drawFeature(ctx, x, y, primary, secondary) {
+  const lines = [primary, secondary].filter(Boolean);
+  if (!lines.length) return;
+
+  drawCheck(ctx, x, y + 5);
+  ctx.fillStyle = CREAM;
+  ctx.font = "600 25px Arial, Helvetica, sans-serif";
+  ctx.fillText(fitText(ctx, lines[0], 235), x + 34, y + 12);
+  if (lines[1]) {
+    ctx.font = "500 23px Arial, Helvetica, sans-serif";
+    ctx.fillText(fitText(ctx, lines[1], 235), x + 34, y + 43);
+  }
+}
+
+function drawBrandLogo(ctx, x, y, width, height) {
+  ctx.fillStyle = CREAM;
+  roundedRect(ctx, x, y, width, height, 4);
+  ctx.fill();
+
+  ctx.fillStyle = MAROON;
+  ctx.font = "700 84px Georgia, serif";
+  ctx.textAlign = "left";
+  ctx.fillText("P", x + 30, y + 85);
+
+  ctx.fillStyle = ACCENT_RED;
+  ctx.fillRect(x + 118, y + 24, 3, height - 48);
+  ctx.fillStyle = MAROON;
+  ctx.font = "700 16px Arial, Helvetica, sans-serif";
+  ctx.fillText("PHILIP REAL ESTATE", x + 143, y + 49);
+  ctx.font = "600 12px Arial, Helvetica, sans-serif";
+  ctx.fillText("JUAL | BELI | SEWA | KPR", x + 143, y + 77);
+}
+
+function loadImage(url) {
+  if (!url) return Promise.resolve(null);
   return new Promise((resolve) => {
     const image = new Image();
     image.crossOrigin = "anonymous";
@@ -105,62 +149,79 @@ async function loadImage(url) {
 
 export async function generateFlyerPNG(properti, options = {}) {
   const scale = Math.max(1, Math.min(Number(options.scale) || 2, 3));
+  const actor = options.actor || {};
   const canvas = document.createElement("canvas");
   canvas.width = WIDTH * scale;
   canvas.height = HEIGHT * scale;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas browser tidak tersedia");
+
   ctx.scale(scale, scale);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
 
   const photos = [...(properti.foto_properti || [])]
     .sort((a, b) => Number(Boolean(b.is_cover)) - Number(Boolean(a.is_cover)) || (a.urutan || 0) - (b.urutan || 0))
-    .map((photo) => getImageUrl(photo.url_foto || photo))
+    .map((photo) => getImageUrl(typeof photo === "string" ? photo : photo?.url_foto))
     .filter(Boolean);
   const images = await Promise.all(photos.slice(0, 4).map(loadImage));
 
-  const background = ctx.createLinearGradient(0, 0, 0, HEIGHT);
-  background.addColorStop(0, "#a7001b");
-  background.addColorStop(0.4, MAROON);
+  const background = ctx.createLinearGradient(0, 680, 0, HEIGHT);
+  background.addColorStop(0, MAROON);
   background.addColorStop(1, DEEP_MAROON);
   ctx.fillStyle = background;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
-  ctx.fillStyle = "rgba(255,255,255,0.04)";
-  ctx.beginPath();
-  ctx.arc(WIDTH + 100, 100, 420, 0, Math.PI * 2);
-  ctx.fill();
 
-  drawPhoto(ctx, images[0], 30, 30, WIDTH - 60, 665, 18);
-  ctx.fillStyle = "rgba(0,0,0,0.12)";
-  ctx.fillRect(30, 540, WIDTH - 60, 155);
-  const thumbnailY = 605;
-  const thumbnailW = 280;
-  const thumbnailH = 190;
-  [1, 2, 3].forEach((index) => {
-    const x = 70 + (index - 1) * 320;
+  // Photo collage: one large cover and three framed details, matching the reference hierarchy.
+  drawPhoto(ctx, images[0], 0, 0, WIDTH, 710);
+  const photoFade = ctx.createLinearGradient(0, 500, 0, 710);
+  photoFade.addColorStop(0, "rgba(126, 0, 21, 0)");
+  photoFade.addColorStop(1, MAROON);
+  ctx.fillStyle = photoFade;
+  ctx.fillRect(0, 500, WIDTH, 210);
+
+  const thumbnails = [
+    { x: 42, y: 602, width: 276, height: 188, image: images[1] || images[0] },
+    { x: 354, y: 565, width: 372, height: 225, image: images[2] || images[0] },
+    { x: 762, y: 602, width: 276, height: 188, image: images[3] || images[0] },
+  ];
+  thumbnails.forEach(({ x, y, width, height, image }) => {
     ctx.fillStyle = CREAM;
-    ctx.fillRect(x - 5, thumbnailY - 5, thumbnailW + 10, thumbnailH + 10);
-    drawPhoto(ctx, images[index] || images[0], x, thumbnailY, thumbnailW, thumbnailH, 2);
+    ctx.fillRect(x - 6, y - 6, width + 12, height + 12);
+    drawPhoto(ctx, image, x, y, width, height, 1);
   });
 
+  const type = getPropertyTypeLabel(properti.kategori, properti.subkategori).toUpperCase();
+  const offerText = `${offerLabel(properti.jenis_penawaran)} ${type}`;
+  ctx.font = "800 31px Arial, Helvetica, sans-serif";
+  const renderedOffer = fitText(ctx, offerText, 820);
+  const offerWidth = Math.min(900, Math.max(310, ctx.measureText(renderedOffer).width + 82));
+  ctx.fillStyle = ACCENT_YELLOW;
+  roundedRect(ctx, (WIDTH - offerWidth) / 2, 856, offerWidth, 66, 33);
+  ctx.fill();
+  ctx.fillStyle = ACCENT_RED;
+  ctx.beginPath();
+  ctx.arc((WIDTH - offerWidth) / 2 + 33, 889, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = MAROON;
   ctx.textAlign = "center";
-  ctx.fillStyle = CREAM;
-  ctx.font = "500 51px Arial, Helvetica, sans-serif";
-  ctx.fillText(offerLabel(properti.jenis_penawaran) + " " + categoryLabel(properti.kategori, properti.subkategori), WIDTH / 2, 905);
-  ctx.font = "400 39px Arial, Helvetica, sans-serif";
-  ctx.fillText(fitText(ctx, properti.nama_jalan || properti.kota, 890), WIDTH / 2, 980);
+  ctx.fillText(renderedOffer, WIDTH / 2 + 8, 900);
 
-  const salePrice = formatPrice(properti.harga_jual);
-  const rentPrice = formatPrice(properti.harga_sewa, "/thn");
+  ctx.fillStyle = CREAM;
+  ctx.font = "400 42px Arial, Helvetica, sans-serif";
+  const location = properti.nama_jalan || properti.area_kecamatan || properti.kota || "";
+  if (location) ctx.fillText(fitText(ctx, location, 900), WIDTH / 2, 987);
+
+  const isForSale = ["dijual", "dijual_dan_disewa"].includes(properti.jenis_penawaran);
+  const isForRent = ["disewa", "dijual_dan_disewa"].includes(properti.jenis_penawaran);
+  const priceLines = [
+    isForSale && formatPrice(properti.harga_jual) ? `Harga Jual ${formatPrice(properti.harga_jual)}` : null,
+    isForRent && formatPrice(properti.harga_sewa, "/thn") ? `Harga Sewa ${formatPrice(properti.harga_sewa, "/thn")}` : null,
+  ].filter(Boolean);
   ctx.font = "400 35px Arial, Helvetica, sans-serif";
-  let priceY = 1060;
-  if (salePrice) {
-    ctx.fillText("Harga Jual " + salePrice, WIDTH / 2, priceY);
-    priceY += 58;
-  }
-  if (rentPrice) ctx.fillText("Harga Sewa " + rentPrice, WIDTH / 2, priceY);
-  if (!salePrice && !rentPrice) ctx.fillText("Hubungi kami untuk informasi harga", WIDTH / 2, priceY);
+  priceLines.forEach((line, index) => {
+    ctx.fillText(fitText(ctx, line, 900), WIDTH / 2, 1060 + index * 58);
+  });
 
   ctx.strokeStyle = CREAM;
   ctx.lineWidth = 6;
@@ -169,63 +230,59 @@ export async function generateFlyerPNG(properti, options = {}) {
   ctx.lineTo(950, 1170);
   ctx.stroke();
 
-  const specs = [
-    ["LT : " + (properti.luas_tanah || "-") + " m2", "LB : " + (properti.luas_bangunan || "-") + " m2"],
-    ["KT : " + (properti.kamar_tidur || "-"), "KM : " + (properti.kamar_mandi || "-")],
-    [properti.sertifikat || "Sertifikat tersedia", properti.sumber_air || "Air tersedia"],
-    [properti.daftar_bonus ? String(properti.daftar_bonus).split(",")[0].trim() : "Kondisi siap huni", properti.kota || "Pekanbaru"],
-    [properti.status_unit ? "Status: " + String(properti.status_unit).toUpperCase() : "Unit tersedia", properti.subkategori || "Philip Real Estate"],
-    [properti.no_folder ? "No. " + properti.no_folder : "Konsultasi gratis", "Survei sesuai jadwal"],
+  const bonus = String(properti.daftar_bonus || "")
+    .split(",")
+    .map((item) => item.trim())
+    .find(Boolean);
+  const features = [
+    [
+      [`LT : ${formatMetric(properti.luas_tanah) || ""}`, `LB : ${formatMetric(properti.luas_bangunan) || ""}`],
+      [`KT : ${hasValue(properti.kamar_tidur) ? properti.kamar_tidur : ""}`, `KM : ${hasValue(properti.kamar_mandi) ? properti.kamar_mandi : ""}`],
+    ],
+    [
+      [bonus, null],
+      [properti.sumber_air || null, null],
+    ],
+    [
+      [properti.sertifikat || null, null],
+      [properti.kota || null, null],
+    ],
   ];
+
+  const featureXs = [150, 440, 730];
   ctx.textAlign = "left";
-  ctx.fillStyle = CREAM;
-  ctx.font = "500 26px Arial, Helvetica, sans-serif";
-  specs.forEach((pair, index) => {
-    const column = index % 3;
-    const row = Math.floor(index / 3);
-    const x = 155 + column * 285;
-    const y = 1230 + row * 85;
-    drawCheck(ctx, x - 35, y - 8);
-    ctx.fillText(fitText(ctx, pair[0], 225), x, y);
-    ctx.font = "400 23px Arial, Helvetica, sans-serif";
-    ctx.fillText(fitText(ctx, pair[1], 225), x, y + 28);
-    ctx.font = "500 26px Arial, Helvetica, sans-serif";
+  features.forEach((column, columnIndex) => {
+    column.forEach(([primary, secondary], rowIndex) => {
+      const firstLine = String(primary || "").replace(/^(LT|LB|KT|KM) :\s*$/, "");
+      const secondLine = String(secondary || "").replace(/^(LT|LB|KT|KM) :\s*$/, "");
+      drawFeature(ctx, featureXs[columnIndex], 1220 + rowIndex * 88, firstLine || null, secondLine || null);
+    });
   });
 
   ctx.strokeStyle = CREAM;
   ctx.lineWidth = 6;
   ctx.beginPath();
-  ctx.moveTo(130, 1435);
-  ctx.lineTo(950, 1435);
+  ctx.moveTo(130, 1428);
+  ctx.lineTo(950, 1428);
   ctx.stroke();
+
   ctx.textAlign = "center";
   ctx.fillStyle = CREAM;
   ctx.font = "700 29px Arial, Helvetica, sans-serif";
-  ctx.fillText("Hubungi kami untuk konsultasi gratis", WIDTH / 2, 1530);
-  ctx.font = "400 28px Arial, Helvetica, sans-serif";
-  const contact = properti.listed_by_nama
-    ? "Marketing: " + properti.listed_by_nama + (properti.listed_by_hp ? " - " + properti.listed_by_hp : "")
-    : "Philip Real Estate";
-  ctx.fillText(fitText(ctx, contact, 860), WIDTH / 2, 1580);
+  ctx.fillText("Contact Us For Free Consultation", WIDTH / 2, 1518);
 
-  ctx.fillStyle = CREAM;
-  roundedRect(ctx, 370, 1645, 340, 125, 4);
-  ctx.fill();
-  ctx.fillStyle = MAROON;
-  ctx.font = "700 92px Georgia, serif";
-  ctx.textAlign = "left";
-  ctx.fillText("P", 402, 1740);
-  ctx.font = "700 18px Arial, Helvetica, sans-serif";
-  ctx.fillText("PHILIP REAL ESTATE", 500, 1694);
-  ctx.font = "500 14px Arial, Helvetica, sans-serif";
-  ctx.fillText("JUAL | BELI | SEWA | KPR", 500, 1723);
-  ctx.textAlign = "center";
-  ctx.fillStyle = "rgba(255,255,255,0.72)";
-  ctx.font = "400 18px Arial, Helvetica, sans-serif";
-  ctx.fillText("PEKANBARU, RIAU", WIDTH / 2, 1840);
+  const contact = [actor.nama, actor.no_hp].filter(hasValue).join(" • ");
+  if (contact) {
+    ctx.font = "500 27px Arial, Helvetica, sans-serif";
+    ctx.fillText(fitText(ctx, `Marketing: ${contact}`, 860), WIDTH / 2, 1572);
+  }
+
+  ctx.font = "400 28px Arial, Helvetica, sans-serif";
+  ctx.fillText("Instagram : @philip.estate", WIDTH / 2, 1624);
+  drawBrandLogo(ctx, 350, 1680, 380, 120);
 
   return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Gagal membuat file flyer")), "image/png", 1);
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Gagal membuat file flyer"))), "image/png", 1);
   });
 }
 

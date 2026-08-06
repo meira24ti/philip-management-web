@@ -5,14 +5,13 @@ const OFFER_LABELS = {
 };
 
 const OFFER_BADGE_CLASSES = {
-  dijual: "bg-red-100 text-red-800",
-  disewa: "bg-blue-100 text-blue-800",
-  dijual_dan_disewa: "bg-amber-100 text-amber-800",
+  dijual: "border-0 bg-red-600 text-white shadow-sm",
+  disewa: "border-0 bg-blue-600 text-white shadow-sm",
+  dijual_dan_disewa: "border-0 bg-yellow-400 text-yellow-950 shadow-sm",
 };
 
 export const getOfferLabel = (offer, fallback = "Penawaran belum ditentukan") =>
   OFFER_LABELS[offer] || fallback;
 
 export const getOfferBadgeClass = (offer) =>
-  OFFER_BADGE_CLASSES[offer] || "bg-gray-100 text-gray-700";
-
+  OFFER_BADGE_CLASSES[offer] || "border-0 bg-slate-600 text-white shadow-sm";
