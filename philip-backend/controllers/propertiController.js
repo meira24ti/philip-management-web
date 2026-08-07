@@ -4,6 +4,7 @@ const pool   = require("../config/db");
 const multer = require("multer");
 const fs     = require("fs").promises;
 const crypto = require("crypto");
+const path   = require("path");
 const { normalizeDecimalValue, sanitizeForColumnLimits } = require("../utils/numberUtils");
 const { imageFileFilter, safeImageExtension } = require("../utils/uploadValidation");
 const {
@@ -102,11 +103,18 @@ const resolveVendorId = async (db, data, existingVendorId = null) => {
 };
 
 // ─── Upload ──────────────────────────────────────────────────────
+const propertyUploadRoot = path.join(__dirname, "..", "uploads", "properti");
+const temporaryPhotoDir = path.join(propertyUploadRoot, "temp");
+const propertyPhotoDir = (propertiId) => path.join(propertyUploadRoot, String(propertiId));
+
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
-    const dir = `uploads/properti/temp`;
-    await fs.mkdir(dir, { recursive: true });
-    cb(null, dir);
+    try {
+      await fs.mkdir(temporaryPhotoDir, { recursive: true });
+      cb(null, temporaryPhotoDir);
+    } catch (error) {
+      cb(error);
+    }
   },
   filename: (req, file, cb) =>
     cb(null, `${Date.now()}-${crypto.randomUUID()}${safeImageExtension(file)}`)
@@ -116,6 +124,88 @@ exports.upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: imageFileFilter,
 });
+
+const isTruthyRequestValue = (value) =>
+  value === true || value === 1 || value === "1" || value === "true";
+
+const removeFilesIfPresent = async (filePaths = []) => {
+  await Promise.all(filePaths.map(async (filePath) => {
+    try {
+      await fs.unlink(filePath);
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }));
+};
+
+const cleanupTemporaryUploads = async (files = []) =>
+  removeFilesIfPresent(files.map((file) => file.path || path.join(temporaryPhotoDir, file.filename)));
+
+const removeStoredPropertyPhotos = async (propertiId, photoUrls = []) =>
+  removeFilesIfPresent(photoUrls.map((url) =>
+    path.join(propertyPhotoDir(propertiId), path.basename(String(url || "")))
+  ));
+
+/**
+ * Move a request's uploaded files into the permanent property directory and
+ * create their records in the same DB transaction. Replacements retain the
+ * old image files until the caller commits, so a failed update cannot erase
+ * the existing gallery.
+ */
+const persistUploadedPhotos = async (conn, propertiId, files = [], { replaceExisting = false } = {}) => {
+  if (replaceExisting && files.length === 0) {
+    const error = new Error("Pilih minimal satu foto untuk mengganti foto yang ada");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (files.length === 0) return { replacedPhotoUrls: [] };
+
+  const [existingPhotos] = await conn.query(
+    "SELECT id_fotoproperti, url_foto, is_cover, urutan FROM foto_properti WHERE id_properti = ? ORDER BY urutan ASC FOR UPDATE",
+    [propertiId]
+  );
+  if (!replaceExisting && existingPhotos.length + files.length > 10) {
+    const error = new Error(`Jumlah foto maksimal 10. Properti ini sudah memiliki ${existingPhotos.length} foto.`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const targetDir = propertyPhotoDir(propertiId);
+  const movedFilePaths = [];
+  const replacedPhotoUrls = replaceExisting ? existingPhotos.map((photo) => photo.url_foto) : [];
+  const initialOrder = replaceExisting
+    ? 1
+    : Math.max(0, ...existingPhotos.map((photo) => Number(photo.urutan) || 0)) + 1;
+  const hasExistingCover = !replaceExisting && existingPhotos.some((photo) => Number(photo.is_cover) === 1);
+
+  try {
+    await fs.mkdir(targetDir, { recursive: true });
+    if (replaceExisting && existingPhotos.length) {
+      await conn.query("DELETE FROM foto_properti WHERE id_properti = ?", [propertiId]);
+    }
+
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index];
+      const sourcePath = file.path || path.join(temporaryPhotoDir, file.filename);
+      const targetPath = path.join(targetDir, file.filename);
+      await fs.rename(sourcePath, targetPath);
+      movedFilePaths.push(targetPath);
+
+      await conn.query("INSERT INTO foto_properti SET ?", [{
+        id_fotoproperti: crypto.randomUUID(),
+        id_properti: propertiId,
+        url_foto: `/uploads/properti/${propertiId}/${file.filename}`,
+        is_cover: !hasExistingCover && index === 0 ? 1 : 0,
+        urutan: initialOrder + index,
+      }]);
+    }
+  } catch (error) {
+    await removeFilesIfPresent(movedFilePaths).catch(() => {});
+    throw error;
+  }
+
+  return { replacedPhotoUrls };
+};
 
 // ─── GET /api/properti ────────────────────────────────────────
 exports.getAll = async (req, res) => {
@@ -383,23 +473,7 @@ exports.create = async (req, res) => {
       jumlah_kapling: jumlah_kapling || null,
     }]);
 
-    if (req.files?.length) {
-      const targetDir = `uploads/properti/${id}`;
-      await fs.mkdir(targetDir, { recursive: true });
-      for (let i = 0; i < req.files.length; i++) {
-        const f = req.files[i];
-        const oldPath = `uploads/properti/temp/${f.filename}`;
-        const newPath = `${targetDir}/${f.filename}`;
-        try { await fs.rename(oldPath, newPath); } catch {}
-        await conn.query("INSERT INTO foto_properti SET ?", [{
-          id_fotoproperti: crypto.randomUUID(),
-          id_properti:     id,
-          url_foto:        `/uploads/properti/${id}/${f.filename}`,
-          is_cover:        i === 0 ? 1 : 0,
-          urutan:          i + 1
-        }]);
-      }
-    }
+    await persistUploadedPhotos(conn, id, req.files || []);
 
     await conn.query(
       "INSERT INTO log_aktivitas (id_log, id_user, id_properti, aksi, detail) VALUES (?,?,?,?,?)",
@@ -410,6 +484,7 @@ exports.create = async (req, res) => {
     res.status(201).json({ message: "Properti berhasil ditambahkan", id });
   } catch (err) {
     await conn.rollback();
+    await cleanupTemporaryUploads(req.files || []).catch(() => {});
     console.error('ERROR in propertiController.create:', err && err.stack ? err.stack : err);
     res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   } finally { conn.release(); }
@@ -418,6 +493,7 @@ exports.create = async (req, res) => {
 // ─── PUT /api/properti/:id ───────────────────────────────────
 exports.update = async (req, res) => {
   const conn = await pool.getConnection();
+  let replacedPhotoUrls = [];
   try {
     await conn.beginTransaction();
     const propertiId = req.params.id;
@@ -585,15 +661,24 @@ exports.update = async (req, res) => {
       }]);
     }
 
+    const photoMutation = await persistUploadedPhotos(conn, propertiId, req.files || [], {
+      replaceExisting: isTruthyRequestValue(req.body.replace_fotos),
+    });
+    replacedPhotoUrls = photoMutation.replacedPhotoUrls;
+
     await conn.query(
       "INSERT INTO log_aktivitas (id_log, id_user, id_properti, aksi, detail) VALUES (?,?,?,?,?)",
       [crypto.randomUUID(), req.user.id, propertiId, "edit", "Data properti diperbarui"]
     );
 
     await conn.commit();
+    await removeStoredPropertyPhotos(propertiId, replacedPhotoUrls).catch((error) => {
+      console.error("Gagal membersihkan file foto lama:", error);
+    });
     res.json({ message: "Properti berhasil diperbarui" });
   } catch (err) {
     await conn.rollback();
+    await cleanupTemporaryUploads(req.files || []).catch(() => {});
     console.error(err);
     res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   } finally { conn.release(); }
@@ -756,19 +841,41 @@ exports.reorderFotos = async (req, res) => {
 
 // ─── DELETE /api/properti/:id/fotos/:fotoId ──────────────────
 exports.deleteFoto = async (req, res) => {
+  const conn = await pool.getConnection();
   try {
-    const [rows] = await pool.query(
-      "SELECT url_foto FROM foto_properti WHERE id_fotoproperti=? AND id_properti=?",
+    await conn.beginTransaction();
+    const [rows] = await conn.query(
+      "SELECT url_foto, is_cover FROM foto_properti WHERE id_fotoproperti=? AND id_properti=? FOR UPDATE",
       [req.params.fotoId, req.params.id]
     );
-    if (!rows.length) return res.status(404).json({ message: "Foto tidak ditemukan" });
+    if (!rows.length) {
+      const error = new Error("Foto tidak ditemukan");
+      error.statusCode = 404;
+      throw error;
+    }
 
-    const filePath = rows[0].url_foto.replace(/^\//, "");
-    try { await fs.unlink(filePath); } catch {}
+    const deletedPhoto = rows[0];
+    await conn.query("DELETE FROM foto_properti WHERE id_fotoproperti=?", [req.params.fotoId]);
 
-    await pool.query("DELETE FROM foto_properti WHERE id_fotoproperti=?", [req.params.fotoId]);
+    if (Number(deletedPhoto.is_cover) === 1) {
+      const [remainingPhotos] = await conn.query(
+        "SELECT id_fotoproperti FROM foto_properti WHERE id_properti=? ORDER BY urutan ASC, id_fotoproperti ASC LIMIT 1",
+        [req.params.id]
+      );
+      if (remainingPhotos.length) {
+        await conn.query("UPDATE foto_properti SET is_cover=0 WHERE id_properti=?", [req.params.id]);
+        await conn.query("UPDATE foto_properti SET is_cover=1 WHERE id_fotoproperti=?", [remainingPhotos[0].id_fotoproperti]);
+      }
+    }
+
+    await conn.commit();
+    await removeStoredPropertyPhotos(req.params.id, [deletedPhoto.url_foto]).catch((error) => {
+      console.error("Gagal membersihkan file foto:", error);
+    });
     res.json({ message: "Foto berhasil dihapus" });
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
-  }
+    await conn.rollback();
+    console.error(err);
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
+  } finally { conn.release(); }
 };

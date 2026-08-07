@@ -638,7 +638,9 @@ export default function Property() {
           showToast("ID properti tidak ditemukan", "error");
           return;
         }
-        await propertiService.update(propertiId, payload);
+        // Sertakan foto baru saat edit. Service akan memakai multipart hanya
+        // bila ada file, sehingga edit tanpa foto tetap mengirim JSON biasa.
+        await propertiService.update(propertiId, payload, fotoFiles);
         savedPropertyId = propertiId;
         showToast("Properti berhasil diperbarui");
       } else {

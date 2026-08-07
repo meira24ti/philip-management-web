@@ -75,9 +75,9 @@ function App() {
               <ResetPassword />
             </RequireGuest>
           } />
-          {/* Register: hanya Admin yang bisa akses */}
+          {/* Register: Admin dan Direktur dapat menambah staff */}
           <Route path="/register" element={
-            <RequireRole roles={["admin"]}>
+            <RequireRole roles={["admin", "direktur"]}>
               <Register />
             </RequireRole>
           } />

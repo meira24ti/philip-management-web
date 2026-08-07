@@ -9,6 +9,12 @@ const { imageFileFilter, safeImageExtension } = require("../utils/uploadValidati
 const roleRank = { marketing: 1, admin: 2, direktur: 3 };
 const canManageRole = (actorRole, targetRole) =>
   (roleRank[actorRole] || 0) > (roleRank[targetRole] || 0);
+// Admin dan Direktur dapat membuat semua jenis akun staff, termasuk akun
+// Direktur. Pengelolaan akun yang sudah ada tetap mengikuti hierarki role di
+// atas agar akun setara tidak dapat diubah atau dinonaktifkan sembarangan.
+const canCreateRole = (actorRole, targetRole) =>
+  ["admin", "direktur"].includes(actorRole) &&
+  ["admin", "marketing", "direktur"].includes(targetRole);
 
 // ─── Upload foto profil staff ──────────────────────────────
 const fotoStorage = multer.diskStorage({
@@ -68,8 +74,8 @@ exports.create = async (req, res) => {
     if (!validRoles.includes(role)) {
       return res.status(400).json({ message: "Role tidak valid" });
     }
-    if (!canManageRole(req.user.role, role)) {
-      return res.status(403).json({ message: "Tidak boleh membuat akun dengan role setara atau lebih tinggi" });
+    if (!canCreateRole(req.user.role, role)) {
+      return res.status(403).json({ message: "Tidak memiliki izin untuk membuat akun staff" });
     }
 
     // 2. Cek duplikasi email

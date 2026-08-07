@@ -339,6 +339,9 @@ export default function Staff() {
 
   const canManage = ["admin", "direktur"].includes(role);
   const manageableRoles = role === "direktur" ? ["admin", "marketing"] : role === "admin" ? ["marketing"] : [];
+  // Pembuatan akun tidak memakai batas edit/nonaktifkan: Admin dan Direktur
+  // sama-sama dapat mendaftarkan anggota Direktur baru.
+  const creatableRoles = canManage ? ["direktur", "admin", "marketing"] : [];
 
   // ─── Fetch data ──────────────────────────────────────────
   const fetchStaff = useCallback(async () => {
@@ -626,7 +629,7 @@ export default function Staff() {
                     required
                   >
                     <option value="">Pilih role</option>
-                    {manageableRoles.map((managedRole) => <option key={managedRole} value={managedRole}>{roleLabel[managedRole]}</option>)}
+                    {creatableRoles.map((creatableRole) => <option key={creatableRole} value={creatableRole}>{roleLabel[creatableRole]}</option>)}
                   </select>
                 </label>
 

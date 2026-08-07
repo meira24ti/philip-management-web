@@ -1,6 +1,6 @@
 // philip-app/src/pages/auth/Register.jsx — GANTI SELURUH ISI
 // Saat ini masih memanggil /auth/register yang tidak ada di backend!
-// Harus diganti: Admin mendaftarkan staff via staffService.create()
+// Staff didaftarkan oleh Admin atau Direktur melalui staffService.create().
  
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -20,11 +20,11 @@ export default function Register() {
     nama: "", email: "", no_hp: "", role: "marketing",
   });
  
-  if (role && role !== "admin") {
+  if (role && !["admin", "direktur"].includes(role)) {
     return (
       <div className="text-center py-8 text-gray-500">
         <p className="font-semibold text-red-700 mb-2">Akses Ditolak</p>
-        <p className="text-sm">Halaman ini hanya untuk Admin.</p>
+        <p className="text-sm">Halaman ini hanya untuk Admin atau Direktur.</p>
         <Link to="/dashboard" className="text-red-800 font-semibold hover:underline text-sm mt-3 block">
           ← Kembali ke Dashboard
         </Link>
@@ -56,7 +56,7 @@ export default function Register() {
         Daftarkan Staff Baru
       </h2>
       <p className="text-xs text-gray-400 text-center mb-6">
-        Hanya Admin yang dapat mendaftarkan staff baru ke sistem
+        Admin dan Direktur dapat mendaftarkan staff baru ke sistem
       </p>
  
       {error && (
@@ -95,6 +95,8 @@ export default function Register() {
           <label className="block text-sm font-medium text-gray-700 mb-1">Role *</label>
           <select className={inputCls} value={form.role}
             onChange={e=>setForm(f=>({...f,role:e.target.value}))}>
+            <option value="direktur">Direktur</option>
+            <option value="admin">Admin</option>
             <option value="marketing">Marketing</option>
           </select>
         </div>

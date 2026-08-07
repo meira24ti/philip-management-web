@@ -1,6 +1,19 @@
 // philip-app/src/services/propertiService.js — VERSI LENGKAP
 import api from "./api";
 
+const buildPropertyFormData = (data, fotoFiles = [], { replaceFotos = false } = {}) => {
+    const form = new FormData();
+    Object.entries(data || {}).forEach(([key, value]) => {
+        // Only form fields belong in multipart data. Detail responses also
+        // contain nested arrays (such as foto_properti) that are not fields.
+        if (value === undefined || typeof value === "object") return;
+        form.append(key, value === null ? "" : String(value));
+    });
+    Array.from(fotoFiles || []).forEach((file) => form.append("fotos", file));
+    if (replaceFotos) form.append("replace_fotos", "1");
+    return form;
+};
+
 export const propertiService = {
     getAll: (params = {}) => api.get("/properti", { params }).then(r => r.data),
     getById: (id) => api.get(`/properti/${id}`).then(r => r.data),
@@ -10,17 +23,19 @@ export const propertiService = {
     createVendor: (data) => api.post("/properti/vendors", data).then(r => r.data),
 
     create(data, fotoFiles = []) {
-        const form = new FormData();
-        Object.entries(data).forEach(([k, v]) => {
-            if (v !== null && v !== undefined) form.append(k, v);
-        });
-        fotoFiles.forEach(f => form.append("fotos", f));
-        return api.post("/properti", form, {
-            headers: { "Content-Type": "multipart/form-data" }
-        }).then(r => r.data);
+        return api.post("/properti", buildPropertyFormData(data, fotoFiles)).then(r => r.data);
     },
 
-    update: (id, data) => api.put(`/properti/${id}`, data).then(r => r.data),
+    update(id, data, fotoFiles = [], options = {}) {
+        const files = Array.from(fotoFiles || []);
+        if (files.length === 0 && !options.replaceFotos) {
+            return api.put(`/properti/${id}`, data).then(r => r.data);
+        }
+        return api.put(
+            `/properti/${id}`,
+            buildPropertyFormData(data, files, options)
+        ).then(r => r.data);
+    },
     remove: (id) => api.delete(`/properti/${id}`).then(r => r.data),
 
     // Transaksi
