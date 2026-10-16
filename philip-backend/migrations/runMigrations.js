@@ -1,8 +1,11 @@
 const pool = require("../config/db");
 const rumahCluster = require("./20260804_add_rumah_cluster");
 const luasTanahOptional = require("./20260807_make_luas_tanah_optional");
+const propertyMediaAndTypes = require("./20260920_property_media_and_types");
+const authSessions = require("./20260921_auth_sessions");
+const formColumns = require("./20261016_align_form_columns");
 
-const migrations = [rumahCluster, luasTanahOptional];
+const migrations = [rumahCluster, luasTanahOptional, propertyMediaAndTypes, authSessions, formColumns];
 
 async function runMigrations(db = pool) {
   const conn = await db.getConnection();

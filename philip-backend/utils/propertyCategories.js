@@ -57,7 +57,26 @@ const isRumahCluster = (kategori, subkategori = "") =>
 const cleanClusterSubkategori = (subkategori = "") =>
   String(subkategori || "").replace(CLUSTER_PREFIX, "").trim();
 
-const kategoriLabel = (kategori, subkategori = "") => {
+const normalizeCombination = (kategori, first, second) => {
+  if (normalizeKategori(kategori) !== "kombinasi") {
+    return { kategori_kombinasi_1: null, kategori_kombinasi_2: null };
+  }
+  const types = [first, second].map(normalizeKategori);
+  if (types.some(type => !type || type === "kombinasi") || types[0] === types[1]) {
+    const error = new Error("Pilih dua jenis properti yang berbeda untuk kombinasi");
+    error.statusCode = 400;
+    throw error;
+  }
+  return { kategori_kombinasi_1: types[0], kategori_kombinasi_2: types[1] };
+};
+
+const kategoriLabel = (kategori, subkategori = "", first = "", second = "") => {
+  if (normalizeKategori(kategori) === "kombinasi" && first && second) {
+    const types = [first, second].map(normalizeKategori);
+    if (types.every(type => type && type !== "kombinasi") && types[0] !== types[1]) {
+      return types.map(type => PROPERTY_CATEGORY_LABELS[type]).join(" + ");
+    }
+  }
   if (isRumahCluster(kategori, subkategori)) return PROPERTY_CATEGORY_LABELS.rumah_cluster;
   return PROPERTY_CATEGORY_LABELS[normalizeKategori(kategori)] || String(kategori || "Properti");
 };
@@ -70,4 +89,5 @@ module.exports = {
   isRumahCluster,
   cleanClusterSubkategori,
   kategoriLabel,
+  normalizeCombination,
 };

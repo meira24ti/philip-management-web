@@ -1,168 +1,23 @@
-// philip-backend/server.js
-const express = require("express");
-const cors = require("cors");
-const path = require("path");
 require("dotenv").config();
-
-const pool = require("./config/db"); // <-- Tambahan
+const pool = require("./config/db");
 const { runMigrations } = require("./migrations/runMigrations");
+const { createApp } = require("./app");
 
-const authRoutes = require("./routes/authRoutes");
-const propertiRoutes = require("./routes/propertiRoutes");
-const staffRoutes = require("./routes/staffRoutes");
-const statistikRoutes = require("./routes/statistikRoutes");
-const laporanRoutes = require("./routes/laporanRoutes");
-const settingRoutes = require("./routes/settingRoutes");
-const auth = require("./middleware/auth");
-const rbac = require("./middleware/rbac");
-
-const app = express();
-
-const allowedOrigins = process.env.CLIENT_URL
-  ? process.env.CLIENT_URL
-      .split(",")
-      .map((url) => url.trim())
-      .filter(Boolean)
-  : process.env.NODE_ENV === "production"
-    ? []
-    : ["http://localhost:5173", "http://localhost:4173"];
-
-if (process.env.NODE_ENV === "production" && allowedOrigins.length === 0) {
-  throw new Error("CLIENT_URL wajib diatur pada environment production");
-}
-
-if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
-  throw new Error("JWT_SECRET wajib diatur dan minimal 32 karakter");
-}
-
-app.disable("x-powered-by");
-app.use((req, res, next) => {
-  res.set({
-    "X-Content-Type-Options": "nosniff",
-    "X-Frame-Options": "DENY",
-    "Referrer-Policy": "strict-origin-when-cross-origin",
-    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
-  });
-  next();
-});
-
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (allowedOrigins.length === 0) return callback(null, true);
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-
-      const isLocalhostOrigin =
-        /^https?:\/\/localhost(:\d+)?$/.test(origin);
-
-      const hasLocalhostAllowed = allowedOrigins.some((url) =>
-        /^https?:\/\/localhost(:\d+)?$/.test(url)
-      );
-
-      if (isLocalhostOrigin && hasLocalhostAllowed)
-        return callback(null, true);
-
-      callback(new Error(`CORS policy: origin ${origin} not allowed`));
-    },
-    credentials: true,
-  })
-);
-
-app.use(express.json({ limit: "1mb" }));
-app.use(express.urlencoded({ extended: true, limit: "1mb" }));
-
-// Static folder upload
-app.use(
-  "/uploads/laporan",
-  auth,
-  rbac("direktur", "admin"),
-  express.static(path.join(__dirname, "uploads", "laporan"))
-);
-app.use(
-  "/uploads",
-  express.static(path.join(__dirname, "uploads"), {
-    setHeaders: (res) => {
-      res.set("Access-Control-Allow-Origin", "*");
-    },
-  })
-);
-
-// Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/properti", propertiRoutes);
-app.use("/api/staff", staffRoutes);
-app.use("/api/statistik", statistikRoutes);
-app.use("/api/laporan", laporanRoutes);
-app.use("/api/setting", settingRoutes);
-
-// Root endpoint
-app.get("/", (req, res) => {
-  res.json({
-    status: "Philip API running",
-  });
-});
-
-// Error handler
-app.use((err, req, res, next) => {
-  console.error(
-    "GLOBAL ERROR HANDLER:",
-    err && err.stack ? err.stack : err
-  );
-
-  if (err && err.code === "LIMIT_FILE_SIZE") {
-    return res.status(413).json({
-      message: "Ukuran file melebihi batas (5MB)",
-    });
-  }
-
-  if (err && err.message && err.message.includes("File harus berupa gambar")) {
-    return res.status(400).json({ message: err.message });
-  }
-
-  if (err && err.message && err.message.includes("CORS policy")) {
-    return res.status(403).json({
-      message: err.message,
-    });
-  }
-
-  res.status(500).json({
-    message: "Server error",
-  });
-});
-
-// ===============================
-// CEK KONEKSI DATABASE
-// ===============================
-(async () => {
+async function startServer() {
   try {
-    const conn = await pool.getConnection();
-    console.log("✅ Berhasil terhubung ke MySQL");
-    conn.release();
-  } catch (err) {
-    console.error("❌ Gagal terhubung ke MySQL");
-    console.error(err);
-  }
-})();
-
-// ===============================
-// START SERVER
-// ===============================
-const PORT = process.env.PORT || 5000;
-
-const startServer = async () => {
-  try {
-    // The migration is idempotent and completes before the API accepts traffic,
-    // so every environment supports the property type values exposed by the UI.
+    const app = createApp();
     await runMigrations(pool);
-    app.listen(PORT, () => {
-      console.log(`Server berjalan di port ${PORT}`);
-    });
+    const server = app.listen(process.env.PORT || 5000, () => console.log("Philip API siap menerima request"));
+    server.requestTimeout = 120000;
+    server.headersTimeout = 15000;
+    const stop = () => server.close(() => pool.end());
+    process.once("SIGTERM", stop);
+    process.once("SIGINT", stop);
   } catch (error) {
-    console.error("Gagal menyiapkan skema database:", error.message);
+    console.error("Server gagal dimulai:", error.message);
     await pool.end();
     process.exitCode = 1;
   }
-};
-
-void startServer();
+}
+if (require.main === module) void startServer();
+module.exports = { startServer };

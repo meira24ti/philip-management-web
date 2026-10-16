@@ -11,7 +11,7 @@ exports.imageFileFilter = (req, file, callback) => {
   const allowedExtensions = allowedImageTypes.get(file.mimetype);
 
   if (!allowedExtensions || !allowedExtensions.includes(extension)) {
-    return callback(new Error("File harus berupa gambar JPG, PNG, atau WEBP"));
+    return callback(Object.assign(new Error("File harus berupa gambar JPG, PNG, atau WEBP"), { statusCode: 400 }));
   }
 
   callback(null, true);

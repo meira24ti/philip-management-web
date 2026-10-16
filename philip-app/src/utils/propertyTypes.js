@@ -41,7 +41,13 @@ export const isRumahCluster = (kategori, subkategori = "") =>
   normalizePropertyType(kategori) === "rumah_cluster" ||
   (normalizePropertyType(kategori) === "rumah" && CLUSTER_PREFIX.test(String(subkategori || "")));
 
-export const getPropertyTypeLabel = (kategori, subkategori = "") => {
+export const getPropertyTypeLabel = (kategori, subkategori = "", combination1 = "", combination2 = "") => {
+  if (normalizePropertyType(kategori) === "kombinasi") {
+    const types = [combination1, combination2].map(normalizePropertyType);
+    if (types.every(type => type && type !== "kombinasi") && types[0] !== types[1]) {
+      return types.map(type => TYPE_LABELS[type]).join(" + ");
+    }
+  }
   if (isRumahCluster(kategori, subkategori)) return TYPE_LABELS.rumah_cluster;
   return TYPE_LABELS[normalizePropertyType(kategori)] || kategori || "-";
 };

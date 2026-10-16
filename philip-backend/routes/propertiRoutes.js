@@ -3,6 +3,10 @@ const router = require("express").Router();
 const ctrl   = require("../controllers/propertiController");
 const auth   = require("../middleware/auth");
 const rbac   = require("../middleware/rbac");
+for (const parameter of ["id", "fotoId"]) router.param(parameter, (req, res, next, value) => {
+  if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value)) return res.status(400).json({ message: "ID tidak valid" });
+  next();
+});
  
 // Helper data untuk form
 router.get("/vendors",   auth, rbac("admin"), ctrl.getVendors); // dropdown vendor
@@ -22,6 +26,7 @@ router.post("/:id/transaksi", auth, rbac("admin"),             ctrl.createTransa
 router.get("/:id/transaksi",  auth, rbac("admin","direktur"),  ctrl.getTransaksi);
  
 // Foto
+router.get("/:id/fotos/:fotoId/download", auth, ctrl.downloadFoto);
 router.put("/:id/fotos/reorder",    auth, rbac("admin"), ctrl.reorderFotos);
 router.delete("/:id/fotos/:fotoId", auth, rbac("admin"), ctrl.deleteFoto);
  

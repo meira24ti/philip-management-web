@@ -6,8 +6,6 @@ import { useAuth } from "../context/useAuth";
 import api from "../services/api";
 import { getImageUrl } from "../utils/imageUrl";
 
-const APP_STARTED = Date.now();
-
 export default function PageHeader({ menuOpen = false, onOpenMenu }) {
   const { user, role, logout } = useAuth();
   const navigate = useNavigate();
@@ -17,8 +15,13 @@ export default function PageHeader({ menuOpen = false, onOpenMenu }) {
   const [notifs, setNotifs] = useState([]);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
   const [avatarError, setAvatarError] = useState(null);
+  const [currentTime, setCurrentTime] = useState(Date.now);
   const notifRef = useRef(null);
   const profileRef = useRef(null);
+  useEffect(() => {
+    const timer = window.setInterval(() => setCurrentTime(Date.now()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -42,12 +45,19 @@ export default function PageHeader({ menuOpen = false, onOpenMenu }) {
       if (notifRef.current && !notifRef.current.contains(event.target)) setNotifOpen(false);
       if (profileRef.current && !profileRef.current.contains(event.target)) setProfileOpen(false);
     };
+    const onKey = event => {
+      if (event.key !== "Escape") return;
+      if (notifRef.current?.contains(document.activeElement)) notifRef.current.querySelector("button")?.focus();
+      if (profileRef.current?.contains(document.activeElement)) profileRef.current.querySelector("button")?.focus();
+      setNotifOpen(false); setProfileOpen(false);
+    };
     document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", handler); document.removeEventListener("keydown", onKey); };
   }, []);
 
   const relativeTime = (date) => {
-    const seconds = Math.max(0, Math.floor((APP_STARTED - new Date(date).getTime()) / 1000));
+    const seconds = Math.max(0, Math.floor((currentTime - new Date(date).getTime()) / 1000));
     if (seconds < 60) return "Baru saja";
     if (seconds < 3600) return `${Math.floor(seconds / 60)} menit lalu`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)} jam lalu`;
@@ -92,23 +102,23 @@ export default function PageHeader({ menuOpen = false, onOpenMenu }) {
 
       <div className="flex items-center gap-3">
         <div className="relative" ref={notifRef}>
-          <button onClick={() => { setNotifOpen((open) => !open); setProfileOpen(false); }} className="relative rounded-xl p-2 text-red-800 transition-colors hover:bg-red-50" aria-label="Buka notifikasi">
+          <button aria-expanded={notifOpen} onClick={() => { setNotifOpen((open) => !open); setProfileOpen(false); }} className="relative rounded-xl p-2 text-red-800 transition-colors hover:bg-red-50" aria-label="Buka notifikasi">
             <BiBell size={20} />
           </button>
 
           {notifOpen && (
             <div className="fixed inset-x-3 top-16 z-[60] max-h-[calc(100dvh-5rem)] overflow-hidden rounded-2xl border border-red-100 bg-white shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[22rem] sm:max-h-none">
               <div className="flex items-center justify-between border-b border-red-50 p-3">
-                <div><p className="text-sm font-bold text-red-900">Notifikasi</p><p className="text-xs text-gray-400">Aktivitas terkini</p></div>
+                <div><p className="text-sm font-bold text-red-900">Notifikasi</p><p className="text-xs text-gray-600">Aktivitas terkini</p></div>
                 <div className="flex items-center gap-1">
                   <button onClick={loadNotifications} className="btn btn-ghost btn-xs btn-square text-red-700" title="Muat ulang" aria-label="Muat ulang notifikasi"><BiRefresh size={16} className={loadingNotifs ? "animate-spin" : ""} /></button>
                 </div>
               </div>
               <div className="max-h-[calc(100dvh-8.5rem)] overflow-y-auto sm:max-h-80">
                 {loadingNotifs && notifs.length === 0 ? <div className="flex justify-center py-8"><span className="loading loading-spinner loading-sm text-red-800" /></div>
-                  : notifs.length === 0 ? <p className="py-8 text-center text-sm text-gray-400">Belum ada notifikasi</p>
+                  : notifs.length === 0 ? <p className="py-8 text-center text-sm text-gray-600">Belum ada notifikasi</p>
                   : notifs.map((notification) => <div key={notification.id_log} className="border-b border-red-50 px-4 py-3 last:border-0">
-                    <p className="text-sm font-semibold text-gray-800">{notification.aksi_label}</p><p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-gray-600">{notification.detail}</p><p className="mt-1.5 text-xs text-gray-400">{relativeTime(notification.created_at)}</p>
+                    <p className="text-sm font-semibold text-gray-800">{notification.aksi_label}</p><p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-gray-600">{notification.detail}</p><p className="mt-1.5 text-xs text-gray-600">{relativeTime(notification.created_at)}</p>
                   </div>)}
               </div>
             </div>
@@ -116,15 +126,15 @@ export default function PageHeader({ menuOpen = false, onOpenMenu }) {
         </div>
 
         <div className="relative" ref={profileRef}>
-          <button onClick={() => { setProfileOpen((open) => !open); setNotifOpen(false); }} className="flex items-center gap-2 rounded-xl p-1.5 pr-3 transition-colors hover:bg-red-50">
+          <button aria-label="Buka menu akun" aria-expanded={profileOpen} onClick={() => { setProfileOpen((open) => !open); setNotifOpen(false); }} className="flex items-center gap-2 rounded-xl p-1.5 pr-3 transition-colors hover:bg-red-50">
             <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg bg-red-800 text-white">
-              {user?.foto_profil && avatarError !== avatarKey ? <img key={avatarKey} src={getImageUrl(user.foto_profil)} className="h-full w-full bg-white object-contain p-0.5" onError={() => setAvatarError(avatarKey)} alt={user?.nama || "Avatar"} /> : <span className="text-xs font-bold">{initials}</span>}
+              {user?.foto_profil && avatarError !== avatarKey ? <img key={avatarKey} src={getImageUrl(user.foto_profil)} className="h-full w-full bg-white object-cover" onError={() => setAvatarError(avatarKey)} alt={user?.nama || "Avatar"} /> : <span className="text-xs font-bold">{initials}</span>}
             </div>
             <span className="hidden text-sm font-semibold text-red-900 md:block">{user?.nama || "Pengguna"}</span>
             <BiChevronDown className={`text-red-700 transition-transform ${profileOpen ? "rotate-180" : ""}`} />
           </button>
           {profileOpen && <div className="absolute right-0 z-[60] mt-2 w-52 overflow-hidden rounded-2xl border border-red-100 bg-white shadow-xl">
-            <div className="border-b border-red-50 px-4 py-3"><p className="text-sm font-bold text-red-900">{user?.nama}</p><p className="text-xs capitalize text-gray-400">{role}</p></div>
+            <div className="border-b border-red-50 px-4 py-3"><p className="text-sm font-bold text-red-900">{user?.nama}</p><p className="text-xs capitalize text-gray-600">{role}</p></div>
             <Link to="/settings" onClick={() => setProfileOpen(false)} className="block px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-red-50">Profil Saya</Link>
             <Link to="/settings" onClick={() => setProfileOpen(false)} className="block px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-red-50">Pengaturan</Link>
             <button onClick={handleLogout} className="w-full px-4 py-2.5 text-left text-sm font-medium text-red-700 hover:bg-red-50">Keluar</button>

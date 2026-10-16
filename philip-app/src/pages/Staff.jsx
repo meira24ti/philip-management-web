@@ -1,3 +1,5 @@
+import ProfilePhotoInput from "../components/ProfilePhotoInput";
+import Modal from "../components/Modal";
 // philip-app/src/pages/Staff.jsx
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import {
@@ -27,7 +29,7 @@ const roleTitle = {
   marketing: "Marketing Property",
   direktur: "Direktur",
 };
-const roleBadge = { admin: "badge-error", marketing: "badge-info", direktur: "badge-warning" };
+const roleBadge = { admin: "border-0 bg-red-600 text-white", marketing: "badge-info", direktur: "badge-warning" };
 const roleOrder = ["direktur", "admin", "marketing"];
 const roleRank = { marketing: 1, admin: 2, direktur: 3 };
 
@@ -139,6 +141,7 @@ function StaffCard({ staff, canManage, actorRole, onEdit, onDeactivate, compact 
           {canManageStaff && (
             <div className="flex gap-1">
               <button
+                aria-label={`Edit ${staff.nama}`}
                 onClick={() => onEdit(staff)}
                 className="btn btn-xs btn-ghost rounded-lg text-blue-500 hover:bg-blue-50"
               >
@@ -146,6 +149,7 @@ function StaffCard({ staff, canManage, actorRole, onEdit, onDeactivate, compact 
               </button>
 
               <button
+                aria-label={`Nonaktifkan ${staff.nama}`}
                 onClick={() => onDeactivate(staff.id_user)}
                 className="btn btn-xs btn-ghost rounded-lg text-red-500 hover:bg-red-50"
               >
@@ -251,7 +255,7 @@ function StaffCarousel({ role, staff, canManage, actorRole, onEdit, onDeactivate
 
       {scrollState.hasOverflow && (
         <div className="flex items-center justify-between gap-3 px-1">
-          <p className="text-xs text-gray-400">Geser atau gunakan panah untuk melihat staff lainnya.</p>
+          <p className="text-xs text-gray-600">Geser atau gunakan panah untuk melihat staff lainnya.</p>
           <div className="flex shrink-0 items-center gap-1.5">
             <button
               type="button"
@@ -288,7 +292,7 @@ function RoleSection({ role, staff, canManage, actorRole, onEdit, onDeactivate }
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 id={`staff-role-${role}`} className="text-lg font-bold text-red-900">{sectionName}</h2>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-600">
             {staff.length} staff {sectionName.toLowerCase()}
           </p>
         </div>
@@ -335,13 +339,14 @@ export default function Staff() {
     password: "",
   });
   const [editFotoFile, setEditFotoFile] = useState(null);
-  const [editFotoPreview, setEditFotoPreview] = useState(null);
+  const [cropping, setCropping] = useState(false);
+  const [savingStaff, setSavingStaff] = useState(false);
+  const [generatedPassword, setGeneratedPassword] = useState(null);
 
   const canManage = ["admin", "direktur"].includes(role);
   const manageableRoles = role === "direktur" ? ["admin", "marketing"] : role === "admin" ? ["marketing"] : [];
-  // Pembuatan akun tidak memakai batas edit/nonaktifkan: Admin dan Direktur
-  // sama-sama dapat mendaftarkan anggota Direktur baru.
-  const creatableRoles = canManage ? ["direktur", "admin", "marketing"] : [];
+  // Admin hanya dapat membuat marketing; direktur dapat membuat semua role.
+  const creatableRoles = role === "direktur" ? ["direktur", "admin", "marketing"] : role === "admin" ? ["marketing"] : [];
 
   // ─── Fetch data ──────────────────────────────────────────
   const fetchStaff = useCallback(async () => {
@@ -410,7 +415,6 @@ export default function Staff() {
       role: staff.role,
     });
     setEditFotoFile(null);
-    setEditFotoPreview(null);
     setShowEditModal(true);
   };
 
@@ -419,28 +423,27 @@ export default function Staff() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleEditFotoChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setEditFotoFile(file);
-    setEditFotoPreview(URL.createObjectURL(file));
-  };
-
   const handleCreate = async (e) => {
     e.preventDefault();
+    if (savingStaff || cropping) return;
+    setSavingStaff(true);
+    setGeneratedPassword(null);
     try {
-      await staffService.create(formData);
+      const result = await staffService.create(formData);
+      if (result.defaultPassword) setGeneratedPassword({ nama: formData.nama, value: result.defaultPassword });
       showToast("Staff berhasil ditambahkan", "success");
       setShowModal(false);
       setFormData({ nama: "", email: "", no_hp: "", role: "", password: "" });
       await fetchStaff();
     } catch (err) {
       showToast(err.response?.data?.message || "Gagal menambahkan staff", "error");
-    }
+    } finally { setSavingStaff(false); }
   };
 
   const handleUpdate = async (e) => {
     e.preventDefault();
+    if (savingStaff || cropping) return;
+    setSavingStaff(true);
     try {
       // Update data staff
       await staffService.update(selectedStaff.id_user, formData);
@@ -458,11 +461,10 @@ export default function Staff() {
       setShowEditModal(false);
       setSelectedStaff(null);
       setEditFotoFile(null);
-      setEditFotoPreview(null);
       await fetchStaff();
     } catch (err) {
       showToast(err.response?.data?.message || "Gagal memperbarui staff", "error");
-    }
+    } finally { setSavingStaff(false); }
   };
 
   // ─── Loading ─────────────────────────────────────────────
@@ -477,11 +479,16 @@ export default function Staff() {
   // ─── Render ──────────────────────────────────────────────
   return (
     <div className="space-y-5">
+      {generatedPassword && <div role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+        <p>Password awal untuk <strong>{generatedPassword.nama}</strong>: <code className="select-all font-bold">{generatedPassword.value}</code></p>
+        <p>Sampaikan kepada staff untuk segera diganti. Password hanya ditampilkan selama halaman ini terbuka.</p>
+        <button className="btn btn-sm mt-2" onClick={() => setGeneratedPassword(null)}>Sudah dicatat</button>
+      </div>}
       {/* ── Header ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-red-900">Direktori Staff</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <p className="text-sm text-gray-600 mt-0.5">
             Informasi kontak tim Philip Real Estate berdasarkan role.
           </p>
         </div>
@@ -504,7 +511,7 @@ export default function Staff() {
         ].map((stat) => (
           <div key={stat.label} className={`${stat.bg} rounded-2xl border border-white p-4 shadow-sm`}>
             <p className={`text-2xl font-bold ${stat.text}`}>{stat.value}</p>
-            <p className="text-xs font-medium text-gray-500">{stat.label}</p>
+            <p className="text-xs font-medium text-gray-600">{stat.label}</p>
           </div>
         ))}
       </div>
@@ -516,7 +523,7 @@ export default function Staff() {
       >
         <div className="flex flex-wrap items-center gap-2">
           <label className="input input-bordered input-sm flex min-w-0 w-full flex-1 items-center gap-2 rounded-xl border-red-100 sm:w-auto">
-            <HiSearch className="text-gray-400" size={15} />
+            <HiSearch className="text-gray-600" size={15} />
             <input
               type="text"
               placeholder="Cari nama atau email..."
@@ -525,8 +532,8 @@ export default function Staff() {
               className="grow text-sm"
             />
             {search && (
-              <button onClick={() => setSearch("")}>
-                <HiX size={13} className="text-gray-400" />
+              <button aria-label="Hapus pencarian staff" onClick={() => setSearch("")}>
+                <HiX size={13} className="text-gray-600" />
               </button>
             )}
           </label>
@@ -545,7 +552,7 @@ export default function Staff() {
 
       {/* ── Staff List ── */}
       {filtered.length === 0 ? (
-        <div className="rounded-2xl bg-white py-14 text-center text-gray-400 shadow-sm">
+        <div className="rounded-2xl bg-white py-14 text-center text-gray-600 shadow-sm">
           <HiOutlineUsers size={40} className="mx-auto mb-3 opacity-30" />
           <p className="text-sm font-semibold">Staff tidak ditemukan</p>
         </div>
@@ -567,7 +574,7 @@ export default function Staff() {
 
       {/* ── Modal Tambah Staff ── */}
       {showModal && (
-        <div className="modal modal-open">
+        <Modal label="Tambah Staff" busy={savingStaff} onClose={() => setShowModal(false)}>
           <div className="modal-box max-w-md rounded-2xl">
             <h3 className="mb-4 text-lg font-bold text-red-900">Tambah Staff Baru</h3>
             <form onSubmit={handleCreate}>
@@ -646,11 +653,11 @@ export default function Staff() {
                       value={formData.password}
                       onChange={handleFormChange}
                     />
-                    <button type="button" onClick={() => setShowCreatePassword((value) => !value)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-800" aria-label="Tampilkan atau sembunyikan password">
+                    <button type="button" onClick={() => setShowCreatePassword((value) => !value)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-red-800" aria-label="Tampilkan atau sembunyikan password">
                       {showCreatePassword ? <HiOutlineEyeOff size={17} /> : <HiOutlineEye size={17} />}
                     </button>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">Kosongkan untuk generate password otomatis.</p>
+                  <p className="text-xs text-gray-600 mt-1">Kosongkan untuk generate password otomatis.</p>
                 </label>
               </div>
 
@@ -662,7 +669,7 @@ export default function Staff() {
                 >
                   Batal
                 </button>
-                <button type="submit" className="btn btn-sm btn-error rounded-xl text-white">
+                <button type="submit" disabled={savingStaff || cropping} className="btn btn-sm btn-error rounded-xl text-white">
                   Simpan Staff
                 </button>
               </div>
@@ -670,42 +677,19 @@ export default function Staff() {
           </div>
 
           <div className="modal-backdrop" onClick={() => setShowModal(false)} />
-        </div>
+        </Modal>
       )}
 
       {/* ── Modal Edit Staff ── */}
       {showEditModal && (
-        <div className="modal modal-open">
-          <div className="modal-box max-w-md rounded-2xl">
+        <Modal label="Edit Staff" busy={savingStaff} onClose={() => setShowEditModal(false)}>
+          <div className="modal-box max-w-xl rounded-2xl">
             <h3 className="mb-4 text-lg font-bold text-red-900">Edit Staff</h3>
 
             <form onSubmit={handleUpdate}>
               <div className="space-y-3">
-                {/* Field foto profil */}
-                <div className="mb-3">
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">Foto Profil</label>
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100">
-                      {editFotoPreview || selectedStaff?.foto_profil ? (
-                        <img
-                          src={editFotoPreview || getImageUrl(selectedStaff?.foto_profil)}
-                          alt=""
-                          className="w-full h-full bg-white object-contain p-1"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-red-700 to-red-900 flex items-center justify-center text-white text-sm font-bold">
-                          {selectedStaff?.nama?.[0] || "?"}
-                        </div>
-                      )}
-                    </div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="file-input file-input-sm file-input-error rounded-xl"
-                      onChange={handleEditFotoChange}
-                    />
-                  </div>
-                </div>
+                <ProfilePhotoInput value={selectedStaff?.foto_profil} file={editFotoFile}
+                  onChange={setEditFotoFile} onBusyChange={setCropping} disabled={savingStaff || cropping} name="Foto staff" />
 
                 <label className="form-control w-full">
                   <div className="label">
@@ -776,13 +760,12 @@ export default function Staff() {
                     setShowEditModal(false);
                     setSelectedStaff(null);
                     setEditFotoFile(null);
-                    setEditFotoPreview(null);
                   }}
                   className="btn btn-sm btn-ghost rounded-xl"
                 >
                   Batal
                 </button>
-                <button type="submit" className="btn btn-sm btn-error rounded-xl text-white">
+                <button type="submit" disabled={savingStaff || cropping} className="btn btn-sm btn-error rounded-xl text-white">
                   Update Staff
                 </button>
               </div>
@@ -793,16 +776,15 @@ export default function Staff() {
             setShowEditModal(false);
             setSelectedStaff(null);
             setEditFotoFile(null);
-            setEditFotoPreview(null);
           }} />
-        </div>
+        </Modal>
       )}
 
       {/* ── Modal Konfirmasi Nonaktif ── */}
       <dialog id="confirm-modal" className="modal">
         <div className="modal-box max-w-sm rounded-2xl">
           <h3 className="text-lg font-bold text-red-900">Nonaktifkan Akun?</h3>
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-gray-600">
             Akun staff ini tidak akan dapat login setelah dinonaktifkan. Data tetap tersimpan dan dapat diaktifkan kembali.
           </p>
 

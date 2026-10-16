@@ -31,7 +31,7 @@ function SidebarProfileAvatar({ fotoProfil, initials, name }) {
         <img
           src={fotoUrl}
           alt={name ? `Foto profil ${name}` : "Foto profil"}
-          className="h-full w-full object-contain p-0.5"
+          className="h-full w-full object-cover"
           onError={() => setHasError(true)}
         />
       ) : (
@@ -56,7 +56,7 @@ export default function Sidebar({ mobileOpen = false, onMobileOpenChange }) {
 
   // ─── Load data perusahaan ──────────────────────────────────
   useEffect(() => {
-    settingService
+    const refresh = () => settingService
       .getAll()
       .then((data) =>
         setCompany({
@@ -66,6 +66,9 @@ export default function Sidebar({ mobileOpen = false, onMobileOpenChange }) {
         })
       )
       .catch(() => {});
+    refresh();
+    window.addEventListener("company-settings-updated", refresh);
+    return () => window.removeEventListener("company-settings-updated", refresh);
   }, []);
 
   useEffect(() => {
@@ -169,7 +172,7 @@ export default function Sidebar({ mobileOpen = false, onMobileOpenChange }) {
         </div>
       )}
       <div className="overflow-hidden">
-        <p className="text-white font-bold text-sm leading-tight font-serif tracking-wide truncate">
+        <p className="company-name text-white text-xs leading-snug tracking-wide">
           {company.name}
         </p>
         <p className="text-red-200 text-[10px] leading-tight truncate">
@@ -252,6 +255,7 @@ export default function Sidebar({ mobileOpen = false, onMobileOpenChange }) {
         id="mobile-navigation"
         aria-label="Navigasi utama"
         aria-hidden={!mobileOpen}
+        inert={!mobileOpen}
         className={[
           "fixed inset-y-0 left-0 z-50 flex h-dvh w-72 max-w-[calc(100vw-2rem)] flex-col shadow-2xl shadow-black/25 md:hidden",
           "transform-gpu transition-transform duration-300 ease-out",

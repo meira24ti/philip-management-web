@@ -6,7 +6,7 @@ const buildPropertyFormData = (data, fotoFiles = [], { replaceFotos = false } = 
     Object.entries(data || {}).forEach(([key, value]) => {
         // Only form fields belong in multipart data. Detail responses also
         // contain nested arrays (such as foto_properti) that are not fields.
-        if (value === undefined || typeof value === "object") return;
+        if (key === "feed" || value === undefined || (value !== null && typeof value === "object")) return;
         form.append(key, value === null ? "" : String(value));
     });
     Array.from(fotoFiles || []).forEach((file) => form.append("fotos", file));
@@ -43,6 +43,7 @@ export const propertiService = {
     getTransaksi: (id) => api.get(`/properti/${id}/transaksi`).then(r => r.data),
 
     // Foto
+    downloadFoto: (id, fotoId) => api.get(`/properti/${id}/fotos/${fotoId}/download`, { responseType: "blob" }).then(r => r.data),
     reorderFotos: (id, orders) =>
         api.put(`/properti/${id}/fotos/reorder`, { orders }).then(r => r.data),
     deleteFoto: (propertiId, fotoId) =>

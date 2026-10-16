@@ -1,89 +1,54 @@
-// philip-app/src/context/AuthContext.jsx
 import { useState, useEffect } from "react";
 import { authService } from "../services/authService";
 import { AuthContext } from "./useAuth";
+import { readSession, clearSession } from "../utils/sessionStorage";
 
 export function AuthProvider({ children }) {
-    const [user, setUser] = useState(() => {
-      try {
-        const stored = localStorage.getItem("user");
-        return stored ? JSON.parse(stored) : null;
-      } catch {
-        return null;
-      }
-    });
-    const [role, setRole] = useState(() => {
-      try {
-        const stored = localStorage.getItem("user");
-        return stored ? JSON.parse(stored).role : null;
-      } catch {
-        return null;
-      }
-    });
-    const [loading, setLoading] = useState(() => Boolean(localStorage.getItem("user")));
+  const [user, setUser] = useState(readSession);
+  const [loading, setLoading] = useState(() => Boolean(readSession()));
+  const [connectionError, setConnectionError] = useState(false);
 
-    useEffect(() => {
-        const stored = localStorage.getItem("user");
-        if (!stored) {
-            return;
-        }
-
-        let isActive = true;
-        const parsed = JSON.parse(stored);
-        authService.me()
-            .then((userData) => {
-                if (!isActive) return;
-                setUser({ ...parsed, ...userData });
-                setRole(userData.role);
-            })
-            .catch(() => {
-                if (!isActive) return;
-                localStorage.removeItem("user");
-                setUser(null);
-                setRole(null);
-            })
-            .finally(() => {
-                if (isActive) setLoading(false);
-            });
-
-        return () => {
-            isActive = false;
-        };
-    }, []);
-
-    const login = async (email, password) => {
-        const data = await authService.login({ email, password });
-        // data = { token, user: { id, nama, email, role, ... } }
-        const userData = { ...data.user, token: data.token };
-        localStorage.setItem("user", JSON.stringify(userData));
-        setUser(userData);
-        setRole(userData.role);
-        return userData;
-    };
-
-    const logout = async () => {
-        try {
-            await authService.logout();
-        } catch {
-            // ignore logout failures and clear local auth state
-        }
-        localStorage.removeItem("user");
+  useEffect(() => {
+    const stored = readSession();
+    if (!stored) return;
+    let active = true;
+    authService.me().then(data => {
+      if (!active) return;
+      const verified = { ...stored, ...data };
+      localStorage.setItem("user", JSON.stringify(verified));
+      setUser(verified);
+    }).catch(error => {
+      if (!active) return;
+      if (error.response?.status === 401) {
+        clearSession();
         setUser(null);
-        setRole(null);
-    };
+      } else {
+        setConnectionError(true);
+      }
+    }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
 
-    const updateUser = (updates) => {
-        setUser((currentUser) => {
-            const nextUser = { ...(currentUser || {}), ...(updates || {}) };
-            localStorage.setItem("user", JSON.stringify(nextUser));
-            setRole(nextUser.role || null);
-            return nextUser;
-        });
-    };
+  const login = async (email, password) => {
+    const data = await authService.login({ email, password });
+    const next = { ...data.user, token: data.token };
+    localStorage.setItem("user", JSON.stringify(next));
+    setUser(next);
+    return next;
+  };
 
-    return (
-        <AuthContext.Provider value={{ user, role, login, logout, updateUser, loading }}>
-            {!loading && children}
-        </AuthContext.Provider>
-    );
+  const endSession = () => { clearSession(); setUser(null); };
+  const logout = async () => {
+    try { await authService.logout(); } catch { /* The local session still ends if the network is unavailable. */ }
+    endSession();
+  };
+  const updateUser = updates => {
+    const next = { ...user, ...updates };
+    localStorage.setItem("user", JSON.stringify(next));
+    setUser(next);
+  };
+
+  if (loading) return <main className="min-h-screen grid place-items-center" aria-busy="true"><p role="status">Memeriksa sesi…</p></main>;
+  if (connectionError) return <main className="min-h-screen grid place-items-center p-6 text-center"><div role="alert"><p>Sesi belum dapat diperiksa. Periksa koneksi lalu coba lagi.</p><button className="btn bg-red-800 text-white mt-4" onClick={() => window.location.reload()}>Coba lagi</button></div></main>;
+  return <AuthContext.Provider value={{ user, role: user?.role || null, login, logout, endSession, updateUser, loading }}>{children}</AuthContext.Provider>;
 }

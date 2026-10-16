@@ -163,7 +163,7 @@ function normalizeRows(rows, key, labels) {
 
 function EmptyChart({ message = "Belum ada data untuk periode ini." }) {
   return (
-    <div className="flex h-[210px] items-center justify-center rounded-xl border border-dashed border-red-100 bg-red-50/40 px-5 text-center text-sm text-gray-400">
+    <div className="flex h-[210px] items-center justify-center rounded-xl border border-dashed border-red-100 bg-red-50/40 px-5 text-center text-sm text-gray-600">
       {message}
     </div>
   );
@@ -350,7 +350,7 @@ export default function Reports() {
 
   if (!canSeeStats) {
     return (
-      <div className="flex h-64 items-center justify-center text-gray-400">
+      <div className="flex h-64 items-center justify-center text-gray-600">
         <p>Anda tidak memiliki akses ke halaman ini.</p>
       </div>
     );
@@ -507,7 +507,7 @@ export default function Reports() {
           <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-red-100 bg-red-50/65 px-3 py-2 text-xs">
             <span className="font-bold text-red-900">Periode aktif</span>
             <span className="font-semibold text-red-700">{rangeCaption}</span>
-            <span className="text-gray-400">•</span>
+            <span className="text-gray-600">•</span>
             <span className="text-gray-500">{responsePeriod?.granularity === "harian" ? "Tren ditampilkan per hari" : "Tren ditampilkan per bulan"}</span>
           </div>
         </div>
@@ -525,20 +525,20 @@ export default function Reports() {
 
           <section className="interactive-panel motion-reveal motion-reveal-delay-1 grid gap-3 rounded-2xl border border-red-50 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-400">Penjualan</p>
-              <p className="numeric-text mt-1 text-lg font-bold text-red-800">{formatNumber(summary.total_terjual)} <span className="text-xs font-medium text-gray-400">transaksi</span></p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-600">Penjualan</p>
+              <p className="numeric-text mt-1 text-lg font-bold text-red-800">{formatNumber(summary.total_terjual)} <span className="text-xs font-medium text-gray-600">transaksi</span></p>
             </div>
             <div className="sm:border-l sm:border-red-50 sm:pl-4">
-              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-400">Penyewaan</p>
-              <p className="numeric-text mt-1 text-lg font-bold text-blue-700">{formatNumber(summary.total_tersewa)} <span className="text-xs font-medium text-gray-400">transaksi</span></p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-600">Penyewaan</p>
+              <p className="numeric-text mt-1 text-lg font-bold text-blue-700">{formatNumber(summary.total_tersewa)} <span className="text-xs font-medium text-gray-600">transaksi</span></p>
             </div>
             <div className="lg:border-l lg:border-red-50 lg:pl-4">
-              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-400">Rata-rata nilai</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-600">Rata-rata nilai</p>
               <p className="numeric-text mt-1 truncate text-lg font-bold text-gray-700" title={formatCurrency(summary.rata_rata_nilai)}>{formatCurrency(summary.rata_rata_nilai)}</p>
             </div>
             <div className="lg:border-l lg:border-red-50 lg:pl-4">
-              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-400">Properti ditransaksikan</p>
-              <p className="numeric-text mt-1 text-lg font-bold text-gray-700">{formatNumber(summary.properti_tertransaksi)} <span className="text-xs font-medium text-gray-400">unit unik</span></p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-600">Properti ditransaksikan</p>
+              <p className="numeric-text mt-1 text-lg font-bold text-gray-700">{formatNumber(summary.properti_tertransaksi)} <span className="text-xs font-medium text-gray-600">unit unik</span></p>
             </div>
           </section>
 
@@ -547,7 +547,7 @@ export default function Reports() {
               <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <h3 className="font-bold text-red-900">Aktivitas transaksi</h3>
-                  <p className="mt-0.5 text-xs text-gray-400">Perbandingan penjualan dan penyewaan selama {rangeCaption}.</p>
+                  <p className="mt-0.5 text-xs text-gray-600">Perbandingan penjualan dan penyewaan selama {rangeCaption}.</p>
                 </div>
                 <span className="rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700">{responsePeriod?.granularity === "harian" ? "Harian" : "Bulanan"}</span>
               </div>
@@ -576,7 +576,7 @@ export default function Reports() {
               <div className="card-body p-4 sm:p-5">
                 <div className="mb-3">
                   <h3 className="font-bold text-red-900">Komposisi transaksi</h3>
-                  <p className="mt-0.5 text-xs text-gray-400">Bagian penjualan dan penyewaan dalam periode aktif.</p>
+                  <p className="mt-0.5 text-xs text-gray-600">Bagian penjualan dan penyewaan dalam periode aktif.</p>
                 </div>
                 {transactionTypes.length ? (
                   <ResponsiveContainer width="100%" height={225}>
@@ -596,7 +596,7 @@ export default function Reports() {
               <div className="card-body p-4 sm:p-5">
                 <div className="mb-3">
                   <h3 className="font-bold text-red-900">Transaksi per tipe properti</h3>
-                  <p className="mt-0.5 text-xs text-gray-400">Jenis properti yang paling sering bertransaksi pada periode aktif.</p>
+                  <p className="mt-0.5 text-xs text-gray-600">Jenis properti yang paling sering bertransaksi pada periode aktif.</p>
                 </div>
                 {propertyTypes.length ? (
                   <ResponsiveContainer width="100%" height={225}>
@@ -616,7 +616,7 @@ export default function Reports() {
               <div className="card-body p-4 sm:p-5">
                 <div className="mb-3">
                   <h3 className="font-bold text-red-900">Akumulasi komisi</h3>
-                  <p className="mt-0.5 text-xs text-gray-400">Komisi yang tercatat mengikuti aktivitas transaksi pada periode aktif.</p>
+                  <p className="mt-0.5 text-xs text-gray-600">Komisi yang tercatat mengikuti aktivitas transaksi pada periode aktif.</p>
                 </div>
                 {trend.some((item) => item.total_komisi > 0) ? (
                   <ResponsiveContainer width="100%" height={225}>
@@ -658,13 +658,13 @@ export default function Reports() {
                 ].map(([label, value, classes]) => (
                   <div key={label} className={`rounded-xl border p-3 ${classes}`}>
                     <p className="numeric-text text-lg font-extrabold">{formatNumber(value)}</p>
-                    <p className="mt-0.5 text-[11px] font-semibold opacity-75">{label}</p>
+                    <p className="mt-0.5 text-[11px] font-semibold">{label}</p>
                   </div>
                 ))}
               </div>
               <div className="rounded-xl border border-red-100 bg-white p-3">
-                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-400">Snapshot stok saat ini</p>
-                <p className="numeric-text mt-1 text-xl font-bold text-red-900">{formatNumber(currentStock.total)} <span className="text-xs font-medium text-gray-400">listing tersimpan</span></p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-600">Snapshot stok saat ini</p>
+                <p className="numeric-text mt-1 text-xl font-bold text-red-900">{formatNumber(currentStock.total)} <span className="text-xs font-medium text-gray-600">listing tersimpan</span></p>
                 <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
                   <span><b className="text-emerald-700">{formatNumber(currentStock.tersedia)}</b> tersedia</span>
                   <span><b className="text-amber-700">{formatNumber(currentStock.negosiasi)}</b> negosiasi</span>
@@ -686,7 +686,7 @@ export default function Reports() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h3 className="font-bold text-red-900">Generate Laporan PDF</h3>
-                <p className="mt-1 text-xs leading-relaxed text-gray-400">Pilih jenis laporan; periode akan mengikuti filter analitik aktif agar angka pada layar dan PDF konsisten.</p>
+                <p className="mt-1 text-xs leading-relaxed text-gray-600">Pilih jenis laporan; periode akan mengikuti filter analitik aktif agar angka pada layar dan PDF konsisten.</p>
               </div>
               <span className="shrink-0 rounded-full border border-red-100 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700">{rangeCaption}</span>
             </div>
@@ -719,7 +719,7 @@ export default function Reports() {
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <h3 className="font-bold text-red-900">Riwayat Laporan</h3>
-                <p className="mt-0.5 text-xs text-gray-400">Dokumen yang telah dibuat dan siap diunduh kembali.</p>
+                <p className="mt-0.5 text-xs text-gray-600">Dokumen yang telah dibuat dan siap diunduh kembali.</p>
               </div>
               <button type="button" onClick={loadRiwayat} disabled={loadingRiwayat} className="btn btn-xs rounded-lg btn-ghost text-gray-500 hover:bg-red-50 hover:text-red-800">
                 {loadingRiwayat ? <span className="loading loading-spinner loading-xs" /> : <HiOutlineRefresh size={14} />}
@@ -730,7 +730,7 @@ export default function Reports() {
             {loadingRiwayat ? (
               <div className="flex justify-center py-8"><span className="loading loading-spinner loading-sm text-red-800" /></div>
             ) : riwayatLaporan.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">Belum ada laporan yang dibuat.</p>
+              <p className="py-8 text-center text-sm text-gray-600">Belum ada laporan yang dibuat.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="table table-sm min-w-[44rem]">

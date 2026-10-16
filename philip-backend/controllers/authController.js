@@ -7,9 +7,8 @@ const multer = require("multer");
 const fs = require("fs").promises;
 const crypto = require("crypto");
 const { imageFileFilter, safeImageExtension } = require("../utils/uploadValidation");
-
-const resetTokenVersion = (passwordHash) =>
-  crypto.createHash("sha256").update(passwordHash).digest("hex").slice(0, 16);
+const { passwordVersion: resetTokenVersion, signAccessToken, signResetToken, verifyResetToken } = require("../utils/authTokens");
+const validation = require("../utils/validation");
 
 const getResetMailer = () => {
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
@@ -20,6 +19,8 @@ const getResetMailer = () => {
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT || 587),
     secure: process.env.SMTP_SECURE === "true",
+    disableFileAccess: true,
+    disableUrlAccess: true,
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
   });
 };
@@ -28,8 +29,12 @@ const getClientUrl = () => String(process.env.CLIENT_URL || "").split(",")[0].tr
 
 // ─── LOGIN ────────────────────────────────────────────────────
 exports.login = async (req, res) => {
-  const { email, password } = req.body;
   try {
+    const email = validation.email(req.body?.email);
+    const password = req.body?.password;
+    if (typeof password !== "string" || !password || Buffer.byteLength(password, "utf8") > 72) {
+      return res.status(400).json({ message: "Email atau password tidak valid" });
+    }
     const [rows] = await pool.query(
       "SELECT * FROM user WHERE email = ? AND is_active = 1",
       [email]
@@ -44,11 +49,12 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: "Email atau password salah" });
     }
 
-    const token = jwt.sign(
-      { id: user.id_user, nama: user.nama, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || "8h" }
-    );
+    const sessionId = crypto.randomUUID();
+    const token = signAccessToken(user, sessionId);
+    const expiresAt = new Date(jwt.decode(token).exp * 1000).toISOString().slice(0, 19).replace("T", " ");
+    await pool.query("DELETE FROM auth_sessions WHERE expires_at <= UTC_TIMESTAMP()");
+    await pool.query("INSERT INTO auth_sessions (id_session, id_user, password_version, expires_at) VALUES (?,?,?,?)",
+      [sessionId, user.id_user, resetTokenVersion(user.password_hash), expiresAt]);
 
     // Catat log login
     await pool.query(
@@ -60,7 +66,7 @@ exports.login = async (req, res) => {
     res.json({ token, user: userData });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   }
 };
 
@@ -91,11 +97,7 @@ exports.forgotPassword = async (req, res) => {
     if (!rows.length) return res.json(genericResponse);
 
     const user = rows[0];
-    const token = jwt.sign(
-      { sub: user.id_user, purpose: "password_reset", version: resetTokenVersion(user.password_hash) },
-      process.env.JWT_SECRET,
-      { expiresIn: "15m" }
-    );
+    const token = signResetToken(user);
     const resetUrl = `${clientUrl}/reset-password?token=${encodeURIComponent(token)}`;
 
     await transporter.sendMail({
@@ -103,7 +105,7 @@ exports.forgotPassword = async (req, res) => {
       to: user.email,
       subject: "Reset Password — Philip Real Estate",
       text: `Halo ${user.nama},\n\nGunakan tautan berikut untuk membuat password baru. Tautan berlaku 15 menit:\n${resetUrl}\n\nJika Anda tidak meminta reset password, abaikan email ini.`,
-      html: `<p>Halo ${user.nama},</p><p>Gunakan tautan berikut untuk membuat password baru. Tautan berlaku selama <strong>15 menit</strong>.</p><p><a href="${resetUrl}">Reset password saya</a></p><p>Jika Anda tidak meminta reset password, abaikan email ini.</p>`,
+      html: `<p>Halo ${validation.escapeHtml(user.nama)},</p><p>Gunakan tautan berikut untuk membuat password baru. Tautan berlaku selama <strong>15 menit</strong>.</p><p><a href="${validation.escapeHtml(resetUrl)}">Reset password saya</a></p><p>Jika Anda tidak meminta reset password, abaikan email ini.</p>`,
     });
 
     await pool.query(
@@ -120,12 +122,9 @@ exports.forgotPassword = async (req, res) => {
 // POST /api/auth/reset-password
 exports.resetPassword = async (req, res) => {
   const { token, newPassword } = req.body || {};
-  if (!token || typeof newPassword !== "string" || newPassword.length < 8) {
-    return res.status(400).json({ message: "Password baru minimal 8 karakter" });
-  }
-
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    validation.password(newPassword, "Password baru");
+    const payload = verifyResetToken(token);
     if (payload.purpose !== "password_reset" || !payload.sub || !payload.version) {
       return res.status(400).json({ message: "Tautan reset tidak valid" });
     }
@@ -139,24 +138,27 @@ exports.resetPassword = async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
-    await pool.query(
-      "UPDATE user SET password_hash = ?, updated_at = NOW() WHERE id_user = ?",
-      [passwordHash, payload.sub]
+    const [updated] = await pool.query(
+      "UPDATE user SET password_hash = ?, updated_at = NOW() WHERE id_user = ? AND password_hash = ?",
+      [passwordHash, payload.sub, rows[0].password_hash]
     );
+    if (!updated.affectedRows) return res.status(400).json({ message: "Tautan reset sudah digunakan" });
+    await pool.query("DELETE FROM auth_sessions WHERE id_user=?", [payload.sub]);
     await pool.query(
       "INSERT INTO log_aktivitas (id_log, id_user, aksi, detail) VALUES (?, ?, 'reset_password', 'Password direset melalui email')",
       [crypto.randomUUID(), payload.sub]
     );
 
     return res.json({ message: "Password berhasil direset. Silakan masuk dengan password baru." });
-  } catch {
-    return res.status(400).json({ message: "Tautan reset tidak valid atau sudah kedaluwarsa" });
+  } catch (error) {
+    return res.status(400).json({ message: error.statusCode ? error.message : "Tautan reset tidak valid atau sudah kedaluwarsa" });
   }
 };
 
 // ─── LOGOUT ───────────────────────────────────────────────────
 exports.logout = async (req, res) => {
   try {
+    await pool.query("DELETE FROM auth_sessions WHERE id_session=? AND id_user=?", [req.sessionId, req.user.id]);
     await pool.query(
       "INSERT INTO log_aktivitas (id_log, id_user, aksi, detail) VALUES (?, ?, 'logout', ?)",
       [crypto.randomUUID(), req.user.id, `Logout dari IP: ${req.ip}`]
@@ -164,7 +166,7 @@ exports.logout = async (req, res) => {
     res.json({ message: "Logout berhasil" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   }
 };
 
@@ -181,7 +183,7 @@ exports.me = async (req, res) => {
     res.json(rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   }
 };
 
@@ -189,8 +191,8 @@ exports.me = async (req, res) => {
 const fotoStorage = multer.diskStorage({
   destination: async (req, file, cb) => {
     try {
-      await fs.mkdir("uploads/profil", { recursive: true });
-      cb(null, "uploads/profil");
+      await fs.mkdir(require("path").join(__dirname, "../uploads/.tmp"), { recursive: true });
+      cb(null, require("path").join(__dirname, "../uploads/.tmp"));
     } catch (err) {
       cb(err);
     }
@@ -201,14 +203,15 @@ const fotoStorage = multer.diskStorage({
 
 exports.uploadFoto = multer({
   storage: fotoStorage,
-  limits: { fileSize: 2 * 1024 * 1024 },
+  limits: { fileSize: 2 * 1024 * 1024, files: 1, fields: 5, parts: 6, fieldSize: 4096 },
   fileFilter: imageFileFilter,
 });
 
 // ─── UPDATE PROFIL ───────────────────────────────────────────
 exports.updateProfile = async (req, res) => {
   try {
-    const { nama, no_hp } = req.body;
+    const nama = validation.text(req.body?.nama, "Nama", { required: true, min: 2, max: 100 });
+    const no_hp = validation.text(req.body?.no_hp, "Nomor HP", { max: 30 });
 
     // Validasi
     if (!nama || nama.length < 2) {
@@ -233,12 +236,13 @@ exports.updateProfile = async (req, res) => {
     res.json({ message: "Profil berhasil diperbarui", user: rows[0] });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   }
 };
 
 // ─── UPLOAD FOTO PROFIL ──────────────────────────────────────
 exports.uploadFotoProfile = async (req, res) => {
+  let stored = false;
   try {
     if (!req.file) {
       return res.status(400).json({ message: "File tidak ditemukan" });
@@ -249,6 +253,7 @@ exports.uploadFotoProfile = async (req, res) => {
       "UPDATE user SET foto_profil = ? WHERE id_user = ?",
       [fotoUrl, req.user.id]
     );
+    stored = true;
 
     // Log aktivitas
     await pool.query(
@@ -258,8 +263,9 @@ exports.uploadFotoProfile = async (req, res) => {
 
     res.json({ message: "Foto berhasil diupload", fotoUrl });
   } catch (err) {
+    if (!stored && req.file) await fs.unlink(req.file.path).catch(() => {});
     console.error(err);
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   }
 };
 
@@ -267,6 +273,8 @@ exports.uploadFotoProfile = async (req, res) => {
 exports.changePassword = async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body;
+    validation.password(newPassword, "Password baru");
+    if (typeof oldPassword !== "string" || Buffer.byteLength(oldPassword, "utf8") > 72) throw validation.badRequest("Password lama tidak valid");
 
     // Validasi
     if (!oldPassword || !newPassword) {
@@ -290,11 +298,13 @@ exports.changePassword = async (req, res) => {
       return res.status(400).json({ message: "Password lama tidak sesuai" });
     }
 
-    const hash = await bcrypt.hash(newPassword, 10);
-    await pool.query(
-      "UPDATE user SET password_hash = ? WHERE id_user = ?",
-      [hash, req.user.id]
+    const hash = await bcrypt.hash(newPassword, 12);
+    const [updated] = await pool.query(
+      "UPDATE user SET password_hash = ?, updated_at=NOW() WHERE id_user = ? AND password_hash = ?",
+      [hash, req.user.id, rows[0].password_hash]
     );
+    if (!updated.affectedRows) return res.status(409).json({ message: "Password sudah berubah. Silakan login kembali." });
+    await pool.query("DELETE FROM auth_sessions WHERE id_user=?", [req.user.id]);
 
     // Log aktivitas
     await pool.query(
@@ -305,7 +315,7 @@ exports.changePassword = async (req, res) => {
     res.json({ message: "Password berhasil diubah" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   }
 };
 
@@ -326,10 +336,13 @@ exports.getNotifikasi = async (req, res) => {
         END AS aksi_label
       FROM log_aktivitas la
       WHERE la.aksi NOT IN ('login','logout','update_profil','upload_foto','ganti_password','minta_reset_password','reset_password')
+      ${req.user.role === "marketing" ? "AND la.aksi IN ('tambah','edit','hapus')" : ""}
       ORDER BY la.created_at DESC
       LIMIT 20`);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   }
 };
+
+module.exports = require("../utils/safeControllers")(module.exports);

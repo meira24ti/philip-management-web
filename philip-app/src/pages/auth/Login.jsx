@@ -37,7 +37,9 @@ export default function Login() {
             await login(dataForm.email.trim(), dataForm.password);
             navigate("/dashboard");
         } catch (err) {
-            setError(err.response?.data?.message || "Email atau password salah!");
+            setError(!err.response
+                ? "Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi."
+                : err.response.data?.message || "Login gagal. Silakan coba lagi.");
         } finally {
             setLoading(false);
         }
@@ -45,7 +47,7 @@ export default function Login() {
 
 
     const errorInfo = error ? (
-        <div className="bg-red-200 mb-5 p-4 text-sm font-medium text-red-800 rounded-lg flex items-center border border-red-300">
+        <div role="alert" className="bg-red-200 mb-5 p-4 text-sm font-medium text-red-800 rounded-lg flex items-center border border-red-300">
             <BsFillExclamationDiamondFill className="text-red-600 me-2 text-lg flex-shrink-0" />
             {error}
         </div>

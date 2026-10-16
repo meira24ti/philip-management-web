@@ -1,3 +1,4 @@
+import Modal from "../components/Modal";
 // philip-app/src/pages/PropertyDetail.jsx
 import { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -11,6 +12,10 @@ import { useAuth } from "../context/useAuth";
 import { useToast } from "../components/ToastContext";
 import { propertiService } from "../services/propertiService";
 import { authService } from "../services/authService";
+import { settingService } from "../services/settingService";
+import { formatListingDate } from "../utils/date";
+import { googleMapsUrl } from "../utils/safeLinks";
+import PropertyPhotoDownload from "../components/PropertyPhotoDownload";
 import { generateFlyerPNG, downloadFlyer } from "../utils/generateFlyer";
 import { getImageUrl } from "../utils/imageUrl";
 import { getOfferBadgeClass, getOfferLabel } from "../utils/propertyLabels";
@@ -26,8 +31,8 @@ const ROLE_CONFIG = {
 // ─── Mapping status unit (sesuai database: negosiasi) ────────
 const unitClass = {
   tersedia: "badge-success",
-  terjual: "badge-error",
-  tersewa: "badge-info",
+  terjual: "border-0 bg-yellow-400 text-yellow-950",
+  tersewa: "border-0 bg-yellow-400 text-yellow-950",
   negosiasi: "badge-warning"
 };
 const unitLabel = {
@@ -54,6 +59,7 @@ export default function PropertyDetail() {
   const [fotoIdx, setFotoIdx] = useState(0);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [generatingFlyer, setGeneratingFlyer] = useState(false);
+  const [savingStatus, setSavingStatus] = useState(false);
 
   // ─── Transaksi state ────────────────────────────────────────
   const [showTransaksi, setShowTransaksi] = useState(false);
@@ -104,7 +110,7 @@ export default function PropertyDetail() {
     try {
       const { shareText, waLink } = await propertiService.getShareText(propertiId);
       await navigator.clipboard.writeText(shareText);
-      window.open(waLink, "_blank");
+      window.open(waLink, "_blank", "noopener,noreferrer");
       showToast("Info properti berhasil disalin ke clipboard", "success");
     } catch {
       showToast("Gagal menyalin info properti", "error");
@@ -115,11 +121,12 @@ export default function PropertyDetail() {
   const handleDownloadFlyer = async () => {
     try {
       setGeneratingFlyer(true);
-      const [data, currentUser] = await Promise.all([
+      const [data, currentUser, settings] = await Promise.all([
         propertiService.getById(id),
         authService.me().catch(() => user),
+        settingService.getAll(),
       ]);
-      const blob = await generateFlyerPNG(data, { scale: 3, actor: currentUser || user });
+      const blob = await generateFlyerPNG(data, { scale: 2, actor: currentUser || user, logoUrl: settings.company_logo });
       if (!blob) throw new Error("Blob flyer kosong");
       downloadFlyer(blob, `flyer-${data.id}.png`);
       showToast("Flyer berhasil didownload", "success");
@@ -151,6 +158,17 @@ export default function PropertyDetail() {
     } finally {
       setSavingTrx(false);
     }
+  };
+
+  const updateOperationalStatus = async (field, checked) => {
+    if (!config.canEdit || savingStatus) return;
+    setSavingStatus(true);
+    try {
+      await propertiService.update(id, { [field]: checked ? 1 : 0 });
+      setProperty(current => ({ ...current, [field]: checked ? 1 : 0 }));
+      showToast("Status operasional diperbarui");
+    } catch (err) { showToast(err.response?.data?.message || "Gagal memperbarui status", "error"); }
+    finally { setSavingStatus(false); }
   };
 
   // ─── Loading ──────────────────────────────────────────────
@@ -234,21 +252,23 @@ export default function PropertyDetail() {
           <div className="card bg-base-100 shadow border border-red-50 overflow-hidden">
             <div className="relative h-52 sm:h-64 md:h-80 bg-gray-100">
               <img
-                src={getImageUrl(fotoList[fotoIdx]?.url_foto) || coverFoto}
+                src={getImageUrl(fotoList[fotoIdx]?.url_foto || coverFoto)}
                 alt="foto properti"
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain bg-gray-950"
                 onError={e => e.target.src = "https://placehold.co/800x400/7A0000/white?text=Foto"}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
               {fotoList.length > 1 && (
                 <>
                   <button
+                    aria-label="Foto sebelumnya"
                     onClick={() => setFotoIdx(i => (i - 1 + fotoList.length) % fotoList.length)}
                     className="absolute left-3 top-1/2 -translate-y-1/2 btn btn-circle btn-sm bg-white/80 border-0 hover:bg-white shadow"
                   >
                     <HiOutlineChevronLeft size={16} />
                   </button>
                   <button
+                    aria-label="Foto berikutnya"
                     onClick={() => setFotoIdx(i => (i + 1) % fotoList.length)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 btn btn-circle btn-sm bg-white/80 border-0 hover:bg-white shadow"
                   >
@@ -260,6 +280,8 @@ export default function PropertyDetail() {
                 {fotoList.map((_, i) => (
                   <button
                     key={i}
+                    aria-label={`Lihat foto ${i + 1}`}
+                    aria-pressed={i === fotoIdx}
                     onClick={() => setFotoIdx(i)}
                     className={`w-2 h-2 rounded-full transition-all ${i === fotoIdx ? "bg-white w-4" : "bg-white/50"}`}
                   />
@@ -287,6 +309,8 @@ export default function PropertyDetail() {
                 {fotoList.map((f, i) => (
                   <button
                     key={i}
+                    aria-label={`Pilih foto ${i + 1}`}
+                    aria-pressed={i === fotoIdx}
                     onClick={() => setFotoIdx(i)}
                     className={`w-16 h-14 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all ${i === fotoIdx ? "border-red-600" : "border-transparent"}`}
                   >
@@ -303,6 +327,7 @@ export default function PropertyDetail() {
           </div>
 
           {/* ── FotoManager (Admin only) ── */}
+          {fotoList.length > 0 && <PropertyPhotoDownload key={id} photos={fotoList} propertyId={id} />}
           {config.canEdit && fotoList.length > 0 && (
             <div className="p-3 border-t border-red-50">
               <FotoManager
@@ -331,7 +356,7 @@ export default function PropertyDetail() {
                   { label: "Keamanan", value: p.keamanan || null },
                 ].filter(s => s.value).map(s => (
                   <div key={s.label} className="bg-red-50 rounded-xl p-2.5">
-                    <p className="text-[10px] text-red-400 font-semibold uppercase tracking-wide">{s.label}</p>
+                    <p className="text-[10px] text-red-700 font-semibold uppercase tracking-wide">{s.label}</p>
                     <p className="text-sm font-semibold text-gray-700 mt-0.5">{s.value}</p>
                   </div>
                 ))}
@@ -377,33 +402,33 @@ export default function PropertyDetail() {
           {/* ── Harga & Identitas ── */}
           <div className="card bg-base-100 shadow border border-red-50">
             <div className="card-body p-4 gap-2">
-              <p className="text-[10px] font-bold text-red-400 uppercase tracking-wide">
-                {kategoriLabel(p.kategori, p.subkategori)} {subkategoriLabel(p.subkategori)}
+              <p className="text-[10px] font-bold text-red-700 uppercase tracking-wide">
+                {kategoriLabel(p.kategori, p.subkategori, p.kategori_kombinasi_1, p.kategori_kombinasi_2)} {subkategoriLabel(p.subkategori)}
               </p>
               <h2 className="text-base font-bold text-gray-800 leading-tight">{p.nama_jalan}</h2>
-              <div className="flex items-center gap-1 text-gray-400">
-                <HiOutlineLocationMarker size={13} className="text-red-400" />
+              <div className="flex items-center gap-1 text-gray-600">
+                <HiOutlineLocationMarker size={13} className="text-red-700" />
                 <span className="text-xs">{p.area_kecamatan}, {p.kota}</span>
               </div>
 
               <div className="bg-red-50 rounded-xl p-3 mt-1">
-                <p className="text-[10px] text-red-400 font-semibold uppercase tracking-wide">Harga Jual</p>
+                <p className="text-[10px] text-red-700 font-semibold uppercase tracking-wide">Harga Jual</p>
                 <p className="text-xl font-bold text-red-900">{formatHarga(p.harga_jual)}</p>
-                <p className="text-[10px] text-gray-400 mt-0.5">Negotiable · {p.sertifikat}</p>
+                <p className="text-[10px] text-gray-600 mt-0.5">Negotiable · {p.sertifikat}</p>
               </div>
 
               {p.harga_sewa && (
                 <div className="bg-blue-50 rounded-xl p-3">
-                  <p className="text-[10px] text-blue-400 font-semibold uppercase">Harga Sewa</p>
+                  <p className="text-[10px] text-blue-700 font-semibold uppercase">Harga Sewa</p>
                   <p className="text-lg font-bold text-blue-700">{formatHarga(p.harga_sewa)}/tahun</p>
                 </div>
               )}
 
               <div className="divider my-0" />
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div><p className="text-gray-400">No. Folder</p><p className="font-bold text-gray-700">{p.no_folder || "-"}</p></div>
-                <div><p className="text-gray-400">Tgl Listing</p><p className="font-bold text-gray-700">{p.tanggal_listing}</p></div>
-                <div><p className="text-gray-400">Listing oleh</p><p className="font-bold text-gray-700">{p.listed_by_nama || "-"}</p></div>
+                <div><p className="text-gray-600">No. Folder</p><p className="font-bold text-gray-700">{p.no_folder || "-"}</p></div>
+                <div><p className="text-gray-600">Tgl Listing</p><p className="font-bold text-gray-700">{formatListingDate(p.tanggal_listing)}</p></div>
+                <div><p className="text-gray-600">Listing oleh</p><p className="font-bold text-gray-700">{p.listed_by_nama || "-"}</p></div>
               </div>
             </div>
           </div>
@@ -426,18 +451,18 @@ export default function PropertyDetail() {
             <div className="card-body p-4 gap-3">
               <h3 className="font-bold text-red-900 text-sm">Status Operasional</h3>
               {[
-                { label: "Spanduk terpasang", val: p.spanduk },
-                { label: "Kunci dititip", val: p.kunci },
-                { label: "Feed dibuat", val: p.feed },
+                { label: "Spanduk terpasang", field: "spanduk", val: p.spanduk },
+                { label: "Kunci dititip", field: "kunci", val: p.kunci },
               ].map(item => (
                 <div key={item.label} className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">{item.label}</span>
                   <input
                     type="checkbox"
+                    aria-label={item.label}
                     className="toggle toggle-sm toggle-success"
-                    checked={!!item.val}
-                    readOnly={!config.canEdit}
-                    onChange={() => {}}
+                    checked={Number(item.val) === 1}
+                    disabled={!config.canEdit || savingStatus}
+                    onChange={event => updateOperationalStatus(item.field, event.target.checked)}
                   />
                 </div>
               ))}
@@ -466,12 +491,12 @@ export default function PropertyDetail() {
                     <div key={t.id_transaksi} className="bg-green-50 rounded-xl p-3">
                       <div className="flex justify-between items-center mb-1">
                         <span
-                          className={`badge badge-sm ${t.jenis === "terjual" ? "badge-error" : "badge-info"} text-white`}
+                          className="badge badge-sm border-0 bg-yellow-400 text-yellow-950"
                         >
                           {t.jenis}
                         </span>
-                        <span className="text-xs text-gray-400">
-                          {t.tanggal_transaksi}
+                        <span className="text-xs text-gray-600">
+                          {formatListingDate(t.tanggal_transaksi)}
                         </span>
                       </div>
                       <p className="text-sm font-bold text-gray-700">
@@ -481,7 +506,7 @@ export default function PropertyDetail() {
                         Komisi {t.komisi_persen}% = Rp{" "}
                         {Number(t.komisi_nominal).toLocaleString("id-ID")}
                       </p>
-                      <p className="text-xs text-gray-400 mt-1">
+                      <p className="text-xs text-gray-600 mt-1">
                         Dicatat: {t.dicatat_oleh_nama}
                       </p>
                     </div>
@@ -492,18 +517,18 @@ export default function PropertyDetail() {
           )}
 
           {/* ── Google Maps ── */}
-          {p.gmaps_url && (
+          {googleMapsUrl(p.gmaps_url) && (
             <div className="card bg-base-100 shadow border border-red-50">
               <div className="card-body p-4">
                 <h3 className="font-bold text-red-900 text-sm mb-2">Lokasi Google Maps</h3>
                 <div className="bg-gray-100 rounded-xl h-28 flex items-center justify-center">
-                  <div className="text-center text-gray-400">
+                  <div className="text-center text-gray-600">
                     <HiOutlineMap size={28} className="mx-auto mb-1 opacity-40" />
                     <p className="text-xs">Peta lokasi properti</p>
                   </div>
                 </div>
                 <a
-                  href={p.gmaps_url}
+                  href={googleMapsUrl(p.gmaps_url)}
                   target="_blank"
                   rel="noreferrer"
                   className="btn btn-sm btn-outline border-red-200 text-red-700 hover:bg-red-50 rounded-xl gap-1 mt-2 w-full"
@@ -518,7 +543,7 @@ export default function PropertyDetail() {
           {config.canDelete && (
             <button
               onClick={() => setShowDeleteModal(true)}
-              className="btn btn-sm btn-ghost text-red-400 hover:bg-red-50 hover:text-red-600 rounded-xl w-full border border-red-100"
+              className="btn btn-sm btn-ghost text-red-700 hover:bg-red-50 hover:text-red-600 rounded-xl w-full border border-red-100"
             >
               Hapus Properti
             </button>
@@ -528,7 +553,7 @@ export default function PropertyDetail() {
 
       {/* ── Delete Modal ── */}
       {showDeleteModal && (
-        <div className="modal modal-open">
+        <Modal label="Hapus Properti" onClose={() => setShowDeleteModal(false)}>
           <div className="modal-box rounded-2xl max-w-sm">
             <h3 className="font-bold text-lg text-red-900">Hapus Properti?</h3>
             <p className="text-sm text-gray-500 mt-2">
@@ -554,12 +579,12 @@ export default function PropertyDetail() {
             </div>
           </div>
           <div className="modal-backdrop" onClick={() => setShowDeleteModal(false)} />
-        </div>
+        </Modal>
       )}
 
       {/* ── Modal Input Transaksi ── */}
       {showTransaksi && (
-        <div className="modal modal-open">
+        <Modal label="Input Transaksi" onClose={() => setShowTransaksi(false)}>
           <div className="modal-box max-w-md rounded-2xl">
             <h3 className="font-bold text-lg text-red-900 mb-4">Input Transaksi</h3>
             <form onSubmit={handleSubmitTransaksi} className="space-y-3">
@@ -678,7 +703,7 @@ export default function PropertyDetail() {
             </form>
           </div>
           <div className="modal-backdrop" onClick={() => setShowTransaksi(false)} />
-        </div>
+        </Modal>
       )}
     </div>
   );

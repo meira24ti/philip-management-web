@@ -5,23 +5,21 @@ const crypto = require("crypto");
 const multer = require("multer");
 const fs = require("fs").promises;
 const { imageFileFilter, safeImageExtension } = require("../utils/uploadValidation");
+const validation = require("../utils/validation");
 
 const roleRank = { marketing: 1, admin: 2, direktur: 3 };
 const canManageRole = (actorRole, targetRole) =>
   (roleRank[actorRole] || 0) > (roleRank[targetRole] || 0);
-// Admin dan Direktur dapat membuat semua jenis akun staff, termasuk akun
-// Direktur. Pengelolaan akun yang sudah ada tetap mengikuti hierarki role di
-// atas agar akun setara tidak dapat diubah atau dinonaktifkan sembarangan.
 const canCreateRole = (actorRole, targetRole) =>
-  ["admin", "direktur"].includes(actorRole) &&
-  ["admin", "marketing", "direktur"].includes(targetRole);
+  (actorRole === "direktur" && ["admin", "marketing", "direktur"].includes(targetRole)) ||
+  (actorRole === "admin" && targetRole === "marketing");
 
 // ─── Upload foto profil staff ──────────────────────────────
 const fotoStorage = multer.diskStorage({
   destination: async (req, file, cb) => {
     try {
-      await fs.mkdir("uploads/profil", { recursive: true });
-      cb(null, "uploads/profil");
+      await fs.mkdir(require("path").join(__dirname, "../uploads/.tmp"), { recursive: true });
+      cb(null, require("path").join(__dirname, "../uploads/.tmp"));
     } catch (err) {
       cb(err);
     }
@@ -31,7 +29,7 @@ const fotoStorage = multer.diskStorage({
 });
 exports.uploadFoto = multer({
   storage: fotoStorage,
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
+  limits: { fileSize: 2 * 1024 * 1024, files: 1, fields: 5, parts: 6, fieldSize: 4096 }, // 2 MB
   fileFilter: imageFileFilter,
 });
 
@@ -60,14 +58,17 @@ exports.getAll = async (req, res) => {
     res.json(rows);
   } catch (err) {
     console.error("❌ Error di getAll staff:", err);
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   }
 };
 
 // ─── POST /api/staff ────────────────────────────────────────
 exports.create = async (req, res) => {
   try {
-    const { nama, email, role, no_hp, password } = req.body;
+    const { role, password } = req.body;
+    const nama = validation.text(req.body.nama, "Nama", { required: true, min: 2, max: 100 });
+    const email = validation.email(req.body.email);
+    const no_hp = validation.text(req.body.no_hp, "Nomor HP", { max: 30 });
 
     // 1. Validasi role
     const validRoles = ["admin", "marketing", "direktur"];
@@ -88,13 +89,11 @@ exports.create = async (req, res) => {
     let rawPassword = null;
     let hashedPassword;
     if (password) {
-      if (typeof password !== "string" || password.length < 6) {
-        return res.status(400).json({ message: "Password minimal 6 karakter" });
-      }
-      hashedPassword = await bcrypt.hash(password, 10);
+      validation.password(password);
+      hashedPassword = await bcrypt.hash(password, 12);
     } else {
       rawPassword = crypto.randomBytes(8).toString("hex"); // 16 karakter hex
-      hashedPassword = await bcrypt.hash(rawPassword, 10);
+      hashedPassword = await bcrypt.hash(rawPassword, 12);
     }
 
     const id = crypto.randomUUID();
@@ -115,7 +114,7 @@ exports.create = async (req, res) => {
     res.status(201).json(resp);
   } catch (err) {
     console.error("❌ Error di create staff:", err);
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   }
 };
 
@@ -123,7 +122,10 @@ exports.create = async (req, res) => {
 exports.update = async (req, res) => {
   try {
     const { id } = req.params;
-    const { nama, email, role, no_hp } = req.body;
+    const { role } = req.body;
+    const nama = validation.text(req.body.nama, "Nama", { required: true, min: 2, max: 100 });
+    const email = validation.email(req.body.email);
+    const no_hp = validation.text(req.body.no_hp, "Nomor HP", { max: 30 });
 
     // 1. Validasi role
     const validRoles = ["admin", "marketing", "direktur"];
@@ -165,7 +167,7 @@ exports.update = async (req, res) => {
     res.json({ message: "Data staff berhasil diperbarui" });
   } catch (err) {
     console.error("❌ Error di update staff:", err);
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   }
 };
 
@@ -191,6 +193,7 @@ exports.deactivate = async (req, res) => {
 
     // 3. Nonaktifkan
     await pool.query("UPDATE user SET is_active = 0 WHERE id_user = ?", [id]);
+    await pool.query("DELETE FROM auth_sessions WHERE id_user=?", [id]);
 
     // 4. Catat log dengan nama staff
     await pool.query(
@@ -201,7 +204,7 @@ exports.deactivate = async (req, res) => {
     res.json({ message: "Staff berhasil dinonaktifkan" });
   } catch (err) {
     console.error("❌ Error di deactivate staff:", err);
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   }
 };
 
@@ -222,6 +225,9 @@ exports.uploadStaffFoto = async (req, res) => {
     await pool.query("UPDATE user SET foto_profil=? WHERE id_user=?", [fotoUrl, id]);
     res.json({ message:"Foto staff berhasil diupload", fotoUrl });
   } catch (err) {
+    if (req.file) await fs.unlink(req.file.path).catch(() => {});
     res.status(500).json({ message:"Server error" });
   }
 };
+
+module.exports = require("../utils/safeControllers")(module.exports);

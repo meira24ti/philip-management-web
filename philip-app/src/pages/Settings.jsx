@@ -8,10 +8,11 @@ import { useAuth } from "../context/useAuth";
 import { useToast } from "../components/ToastContext";
 import { settingService } from "../services/settingService";
 import { authService } from "../services/authService";
-import { getImageUrl } from "../utils/imageUrl";
+import ProfilePhotoInput from "../components/ProfilePhotoInput";
+import { getCompanyLogoUrl } from "../utils/companyBrand";
 
 export default function Settings() {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, endSession } = useAuth();
   const { showToast } = useToast();
 
   const role = user?.role || "";
@@ -62,6 +63,7 @@ export default function Settings() {
   // ─── File upload refs ──────────────────────────────────
   const [logoFile, setLogoFile] = useState(null);
   const [fotoFile, setFotoFile] = useState(null);
+  const [cropping, setCropping] = useState(false);
 
   // ─── Load data ──────────────────────────────────────────
   useEffect(() => {
@@ -109,11 +111,6 @@ export default function Settings() {
     }
   };
 
-  const handleFotoFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      setFotoFile(e.target.files[0]);
-    }
-  };
 
   // ─── Save Company ──────────────────────────────────────
   const handleSaveCompany = async () => {
@@ -121,7 +118,8 @@ export default function Settings() {
       setLoading(prev => ({ ...prev, company: true }));
 
       if (logoFile) {
-        await settingService.uploadLogo(logoFile);
+        const { logoUrl } = await settingService.uploadLogo(logoFile);
+        setCompany(prev => ({ ...prev, company_logo: logoUrl }));
         setLogoFile(null);
       }
 
@@ -136,6 +134,7 @@ export default function Settings() {
         hero_desc: company.hero_desc,
       });
 
+      window.dispatchEvent(new Event("company-settings-updated"));
       showToast("Pengaturan perusahaan berhasil disimpan", "success");
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -148,6 +147,7 @@ export default function Settings() {
 
   // ─── Save Profile ──────────────────────────────────────
   const handleSaveProfile = async () => {
+    if (cropping || loading.profile) return;
     try {
       setLoading(prev => ({ ...prev, profile: true }));
 
@@ -161,6 +161,7 @@ export default function Settings() {
         no_hp: profile.no_hp,
       });
       updateUser(response.user);
+      setProfile(prev => ({ ...prev, ...response.user }));
 
       showToast("Profil berhasil diperbarui", "success");
       setSaved(true);
@@ -195,10 +196,9 @@ export default function Settings() {
         newPassword: passwordData.newPassword,
       });
 
-      showToast("Password berhasil diubah", "success");
+      showToast("Password berhasil diubah. Silakan masuk kembali.", "success", 6000);
       setPasswordData({ oldPassword: "", newPassword: "", confirmPassword: "" });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
+      endSession();
     } catch (err) {
       showToast(err.response?.data?.message || "Gagal mengubah password", "error");
     } finally {
@@ -227,13 +227,14 @@ export default function Settings() {
       </div>
 
       {/* ── Tabs ── */}
-      <div className="tabs tabs-boxed bg-red-50 p-1 rounded-xl w-full sm:w-fit gap-1 overflow-x-auto">
+      <div className="flex bg-red-50 p-1 rounded-xl w-full sm:w-fit gap-1 overflow-x-auto" aria-label="Bagian pengaturan">
         {tabs.map(t => (
           <button
             key={t.id}
+            aria-pressed={activeTab === t.id}
             onClick={() => setActiveTab(t.id)}
-            className={`tab gap-1.5 rounded-lg text-sm font-semibold transition-all ${
-              activeTab === t.id ? "tab-active bg-red-800 text-white shadow" : "text-gray-600 hover:text-red-800"
+            className={`inline-flex items-center justify-center px-3 py-2 gap-1.5 rounded-lg text-sm font-semibold ${
+              activeTab === t.id ? "bg-red-800 text-white shadow" : "text-gray-700 hover:text-red-800"
             }`}
           >
             <t.icon size={15} />
@@ -247,7 +248,7 @@ export default function Settings() {
         <div className="card bg-base-100 shadow border border-red-50">
           <div className="card-body p-4 sm:p-5 gap-4">
             <h3 className="font-bold text-red-900">Identitas Perusahaan</h3>
-            <p className="text-xs text-gray-400 -mt-2">Data ini akan ditampilkan di sidebar, hero banner, dan flyer properti.</p>
+            <p className="text-xs text-gray-600 -mt-2">Data ini akan ditampilkan di sidebar, hero banner, dan flyer properti.</p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <label className="form-control">
@@ -292,7 +293,7 @@ export default function Settings() {
               </label>
             </div>
 
-            <div className="divider text-xs text-gray-400">Teks Hero Banner</div>
+            <div className="divider text-xs text-gray-600">Teks Hero Banner</div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <label className="form-control">
                 <div className="label py-0.5"><span className="label-text text-xs font-semibold text-gray-600">Judul Hero</span></div>
@@ -326,12 +327,12 @@ export default function Settings() {
               </label>
             </div>
 
-            <div className="divider text-xs text-gray-400">Logo Perusahaan</div>
+            <div className="divider text-xs text-gray-600">Logo Perusahaan</div>
             <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-              <div className="w-16 h-16 bg-gradient-to-br from-red-700 to-red-900 rounded-2xl flex items-center justify-center shadow overflow-hidden">
-                {company.company_logo ? (
+              <div className="w-full sm:w-56 h-32 shrink-0 bg-white border border-gray-200 rounded-2xl flex items-center justify-center overflow-hidden">
+                {getCompanyLogoUrl(company.company_logo) ? (
                   <img
-                    src={getImageUrl(company.company_logo)}
+                    src={getCompanyLogoUrl(company.company_logo)}
                     alt="Logo"
                     className="w-full h-full bg-white object-contain p-1.5"
                   />
@@ -341,10 +342,11 @@ export default function Settings() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-gray-700">Upload Logo</p>
-                <p className="text-xs text-gray-400 mb-2">Format PNG/JPG, maks 2MB, disarankan 200×200px</p>
+                <p className="text-xs text-gray-500 mb-2">Gunakan gambar logo lengkap beserta nama perusahaan dan tagline. Gambar ini juga dipakai pada bagian bawah flyer. JPG, PNG, atau WEBP, maksimal 2MB.</p>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
+                  aria-label="Pilih logo perusahaan"
                   className="file-input file-input-bordered file-input-sm file-input-error rounded-xl w-full max-w-xs"
                   onChange={handleLogoFileChange}
                 />
@@ -356,7 +358,7 @@ export default function Settings() {
 
             {/* Preview mini */}
             <div className="bg-red-950 rounded-xl p-4 mt-1">
-              <p className="text-red-300 text-[10px] uppercase tracking-widest mb-1">
+              <p className="company-name text-red-300 text-[10px] tracking-widest mb-1">
                 {company.company_name} · {company.company_city}
               </p>
               <p className="text-white text-lg font-bold font-serif">{company.hero_title}</p>
@@ -391,32 +393,8 @@ export default function Settings() {
           <div className="card-body p-4 sm:p-5 gap-4">
             <h3 className="font-bold text-red-900">Profil Akun Saya</h3>
 
-            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-700 to-red-900 flex items-center justify-center text-white text-xl font-bold shadow overflow-hidden">
-                {profile.foto_profil ? (
-                  <img
-                    src={getImageUrl(profile.foto_profil)}
-                    alt={profile.nama}
-                    className="w-full h-full bg-white object-contain p-1"
-                  />
-                ) : (
-                  profile.nama?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "U"
-                )}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-700">Foto Profil</p>
-                <p className="text-xs text-gray-400 mb-2">Format PNG/JPG, maks 2MB</p>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="file-input file-input-bordered file-input-sm file-input-error rounded-xl w-full max-w-xs"
-                  onChange={handleFotoFileChange}
-                />
-                {fotoFile && (
-                  <p className="text-xs text-green-600 mt-1">✓ {fotoFile.name} siap diupload</p>
-                )}
-              </div>
-            </div>
+            <ProfilePhotoInput value={profile.foto_profil} file={fotoFile} onChange={setFotoFile}
+              onBusyChange={setCropping} disabled={loading.profile || cropping} />
 
             <div className="divider my-0" />
 
@@ -464,7 +442,7 @@ export default function Settings() {
             <div className="flex justify-end mt-2">
               <button
                 onClick={handleSaveProfile}
-                disabled={loading.profile}
+                disabled={loading.profile || cropping}
                 className="btn btn-sm btn-error text-white rounded-xl shadow w-full sm:w-auto"
               >
                 {loading.profile ? (
@@ -498,8 +476,9 @@ export default function Settings() {
                 />
                 <button
                   type="button"
+                  aria-label="Tampilkan atau sembunyikan password lama"
                   onClick={() => setShowOldPw(!showOldPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600"
                 >
                   {showOldPw ? <HiOutlineEyeOff size={16} /> : <HiOutlineEye size={16} />}
                 </button>
@@ -518,8 +497,9 @@ export default function Settings() {
                 />
                 <button
                   type="button"
+                  aria-label="Tampilkan atau sembunyikan password baru"
                   onClick={() => setShowNewPw(!showNewPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600"
                 >
                   {showNewPw ? <HiOutlineEyeOff size={16} /> : <HiOutlineEye size={16} />}
                 </button>
@@ -536,7 +516,7 @@ export default function Settings() {
                   value={passwordData.confirmPassword}
                   onChange={handlePasswordChange}
                 />
-                <button type="button" onClick={() => setShowConfirmPw(!showConfirmPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" aria-label="Tampilkan atau sembunyikan konfirmasi password">
+                <button type="button" onClick={() => setShowConfirmPw(!showConfirmPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600" aria-label="Tampilkan atau sembunyikan konfirmasi password">
                   {showConfirmPw ? <HiOutlineEyeOff size={16} /> : <HiOutlineEye size={16} />}
                 </button>
               </div>

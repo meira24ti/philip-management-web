@@ -1,8 +1,9 @@
 // src/utils/imageUrl.js
-const BACKEND_URL = import.meta.env.VITE_API_URL?.replace("/api","") || "http://localhost:5000";
+import { API_BASE_URL } from "./apiBaseUrl";
+const BACKEND_URL = API_BASE_URL.replace(/\/api$/, "");
  
 export function getImageUrl(path) {
   if (!path) return null;
-  if (path.startsWith("http")) return path;    // sudah URL lengkap
-  return BACKEND_URL + path;                   // tambahkan base URL backend
+  if (/^(https?:|blob:|data:)/.test(path)) return path;
+  return BACKEND_URL + (path.startsWith("/") ? path : `/${path}`);
 }

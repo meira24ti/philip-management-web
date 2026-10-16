@@ -5,13 +5,17 @@ const multer = require("multer");
 const fs     = require("fs").promises;
 const crypto = require("crypto");
 const path   = require("path");
+const validation = require("../utils/validation");
+const { validatePropertyInput, validateColumnLengths } = require("../utils/propertyValidation");
 const { normalizeDecimalValue, sanitizeForColumnLimits } = require("../utils/numberUtils");
 const { imageFileFilter, safeImageExtension } = require("../utils/uploadValidation");
+const { watermarkPropertyPhoto } = require("../utils/propertyImages");
 const {
   normalizeKategori,
   isRumahCluster,
   cleanClusterSubkategori,
   kategoriLabel,
+  normalizeCombination,
 } = require("../utils/propertyCategories");
 
 // ─── Helper ──────────────────────────────────────────────────────
@@ -52,11 +56,10 @@ const allowedPropertyFields = [
   'kamar_tidur', 'kamar_mandi', 'carport', 'daya_listrik', 'sumber_air',
   'row_jalan', 'sertifikat', 'keamanan', 'daftar_bonus', 'akses_fasilitas',
   'keterangan', 'status_unit', 'latitude', 'longtitude', 'gmaps_url',
-  'spanduk', 'kunci', 'feed', 'sudah_share', 'listed_by', 'id_vendor'
+  'spanduk', 'kunci', 'sudah_share', 'listed_by', 'id_vendor'
 ];
 
 const requiredPropertyFields = [
-  ["no_folder", "Nomor folder"],
   ["tanggal_listing", "Tanggal listing"],
   ["nama_jalan", "Alamat properti"],
   ["kota", "Kota"],
@@ -71,16 +74,22 @@ const findMissingRequiredPropertyField = (data) =>
 
 const canViewOwnerData = (req) => req.user?.role === "admin";
 
+const withoutRetiredFields = (property) => {
+  const result = { ...property };
+  delete result.feed;
+  return result;
+};
+
 const hideOwnerData = (property) => {
   const { id_vendor, nama_vendor, vendor_hp, ...safeProperty } = property;
   return safeProperty;
 };
 
-// Vendor dapat diketik langsung di form. Nama yang sudah ada dipakai ulang;
-// nama baru dibuat otomatis dalam transaksi yang sama dengan properti.
+// Reuse an owner only when both name and phone match; changing the phone in
+// a property form must not silently restore an old phone or change other listings.
 const resolveVendorId = async (db, data, existingVendorId = null) => {
-  const namaVendor = String(data.nama_vendor || "").trim();
-  const nomorHp = String(data.vendor_hp || data.no_hp_vendor || "").trim();
+  const namaVendor = validation.text(data.nama_vendor, "Nama vendor", { max: 100 });
+  const nomorHp = validation.text(data.vendor_hp || data.no_hp_vendor, "Nomor HP vendor", { max: 30 });
   if (!namaVendor) return existingVendorId || null;
   if (!nomorHp) {
     const error = new Error("Nomor HP vendor wajib diisi");
@@ -89,8 +98,8 @@ const resolveVendorId = async (db, data, existingVendorId = null) => {
   }
 
   const [existing] = await db.query(
-    "SELECT id_vendor FROM vendor WHERE LOWER(TRIM(nama_vendor)) = LOWER(?) LIMIT 1",
-    [namaVendor]
+    "SELECT id_vendor FROM vendor WHERE LOWER(TRIM(nama_vendor)) = LOWER(?) AND no_hp = ? LIMIT 1",
+    [namaVendor, nomorHp]
   );
   if (existing.length) return existing[0].id_vendor;
 
@@ -121,7 +130,7 @@ const storage = multer.diskStorage({
 });
 exports.upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024, files: 10, fields: 70, parts: 80, fieldSize: 16000 },
   fileFilter: imageFileFilter,
 });
 
@@ -158,7 +167,7 @@ const persistUploadedPhotos = async (conn, propertiId, files = [], { replaceExis
     error.statusCode = 400;
     throw error;
   }
-  if (files.length === 0) return { replacedPhotoUrls: [] };
+  if (files.length === 0) return { replacedPhotoUrls: [], createdFilePaths: [] };
 
   const [existingPhotos] = await conn.query(
     "SELECT id_fotoproperti, url_foto, is_cover, urutan FROM foto_properti WHERE id_properti = ? ORDER BY urutan ASC FOR UPDATE",
@@ -187,14 +196,17 @@ const persistUploadedPhotos = async (conn, propertiId, files = [], { replaceExis
     for (let index = 0; index < files.length; index += 1) {
       const file = files[index];
       const sourcePath = file.path || path.join(temporaryPhotoDir, file.filename);
-      const targetPath = path.join(targetDir, file.filename);
-      await fs.rename(sourcePath, targetPath);
+      const filename = `${path.parse(file.filename).name}.jpg`;
+      const targetPath = path.join(targetDir, filename);
       movedFilePaths.push(targetPath);
+      await watermarkPropertyPhoto(sourcePath, targetPath);
+      await fs.unlink(sourcePath);
 
       await conn.query("INSERT INTO foto_properti SET ?", [{
         id_fotoproperti: crypto.randomUUID(),
         id_properti: propertiId,
-        url_foto: `/uploads/properti/${propertiId}/${file.filename}`,
+        url_foto: `/uploads/properti/${propertiId}/${filename}`,
+        watermark_version: 1,
         is_cover: !hasExistingCover && index === 0 ? 1 : 0,
         urutan: initialOrder + index,
       }]);
@@ -204,7 +216,7 @@ const persistUploadedPhotos = async (conn, propertiId, files = [], { replaceExis
     throw error;
   }
 
-  return { replacedPhotoUrls };
+  return { replacedPhotoUrls, createdFilePaths: movedFilePaths };
 };
 
 // ─── GET /api/properti ────────────────────────────────────────
@@ -217,7 +229,7 @@ exports.getAll = async (req, res) => {
     // ✅ ALIAS p.id_properti AS id
     let sql = `
       SELECT p.id_properti AS id, p.*,
-        tp.kategori, tp.subkategori, tp.jumlah_unit,
+        tp.kategori, tp.subkategori, tp.kategori_kombinasi_1, tp.kategori_kombinasi_2, tp.jumlah_unit,
         fp.url_foto AS cover_foto,
         ${includeOwnerData ? "v.nama_vendor, v.no_hp AS vendor_hp," : ""}
         u.nama AS listed_by_nama, u.no_hp AS listed_by_hp
@@ -284,10 +296,10 @@ exports.getAll = async (req, res) => {
 
     sql += " ORDER BY p.created_at DESC";
     const [rows] = await pool.query(sql, params);
-    res.json(includeOwnerData ? rows : rows.map(hideOwnerData));
+    res.json(rows.map(row => withoutRetiredFields(includeOwnerData ? row : hideOwnerData(row))));
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   }
 };
 
@@ -298,7 +310,7 @@ exports.getById = async (req, res) => {
     // ✅ ALIAS p.id_properti AS id
     const [rows] = await pool.query(`
       SELECT p.id_properti AS id, p.*,
-        tp.kategori, tp.subkategori, tp.jumlah_unit, tp.jumlah_kapling,
+        tp.kategori, tp.subkategori, tp.kategori_kombinasi_1, tp.kategori_kombinasi_2, tp.jumlah_unit, tp.jumlah_kapling,
         ${includeOwnerData ? "v.nama_vendor, v.no_hp AS vendor_hp," : ""}
         u.nama AS listed_by_nama, u.no_hp AS listed_by_hp
       FROM properti p
@@ -314,11 +326,11 @@ exports.getById = async (req, res) => {
       "SELECT * FROM foto_properti WHERE id_properti = ? ORDER BY urutan ASC",
       [req.params.id]
     );
-    const property = includeOwnerData ? rows[0] : hideOwnerData(rows[0]);
+    const property = withoutRetiredFields(includeOwnerData ? rows[0] : hideOwnerData(rows[0]));
     res.json({ ...property, foto_properti: fotos });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   }
 };
 
@@ -331,15 +343,15 @@ exports.getVendors = async (req, res) => {
     const [rows] = await pool.query("SELECT id_vendor, nama_vendor, no_hp FROM vendor ORDER BY nama_vendor");
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   }
 };
 
 // ─── POST /api/properti/vendors ──────────────────────────────
 exports.createVendor = async (req, res) => {
   try {
-    const { nama_vendor, no_hp } = req.body;
-    const trimmedName = (nama_vendor || "").trim();
+    const trimmedName = validation.text(req.body.nama_vendor, "Nama vendor", { required: true, max: 100 });
+    const no_hp = validation.text(req.body.no_hp, "Nomor HP", { max: 30 });
     if (!trimmedName) {
       return res.status(400).json({ message: "Nama vendor wajib diisi" });
     }
@@ -354,7 +366,7 @@ exports.createVendor = async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Gagal menambahkan vendor" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Gagal menambahkan vendor" });
   }
 };
 
@@ -366,13 +378,14 @@ exports.getMarketingList = async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   }
 };
 
 // ─── POST /api/properti ───────────────────────────────────────
 exports.create = async (req, res) => {
   const conn = await pool.getConnection();
+  let createdFilePaths = [];
   try {
     await conn.beginTransaction();
 
@@ -384,6 +397,7 @@ exports.create = async (req, res) => {
       error.statusCode = 400;
       throw error;
     }
+    Object.assign(typeData, normalizeCombination(kategori, req.body.kategori_kombinasi_1, req.body.kategori_kombinasi_2));
 
     const propertiData = {};
     for (const key of allowedPropertyFields) {
@@ -392,6 +406,7 @@ exports.create = async (req, res) => {
       }
     }
 
+    validatePropertyInput(propertiData);
     const missingField = findMissingRequiredPropertyField(propertiData);
     if (missingField) {
       const error = new Error(`${missingField[1]} wajib diisi`);
@@ -436,7 +451,7 @@ exports.create = async (req, res) => {
       }
     }
 
-    const boolFields = ['spanduk', 'kunci', 'feed', 'sudah_share'];
+    const boolFields = ['spanduk', 'kunci', 'sudah_share'];
     for (const field of boolFields) {
       if (propertiData[field] !== undefined) {
         propertiData[field] = toSqlBoolean(propertiData[field]);
@@ -444,6 +459,7 @@ exports.create = async (req, res) => {
     }
 
     propertiData.id_properti = id;
+    propertiData.no_folder = String(propertiData.no_folder || "").trim() || null;
     propertiData.id_vendor   = await resolveVendorId(conn, req.body, propertiData.id_vendor);
     if (!propertiData.id_vendor) {
       const error = new Error("Nama vendor wajib diisi");
@@ -460,6 +476,7 @@ exports.create = async (req, res) => {
       if (match) acc[column.Field] = Number(match[1]);
       return acc;
     }, {});
+    validateColumnLengths(propertiData, columnLimits);
     const safePropertiData = sanitizeForColumnLimits(propertiData, columnLimits);
 
     await conn.query("INSERT INTO properti SET ?", [safePropertiData]);
@@ -469,11 +486,13 @@ exports.create = async (req, res) => {
       id_properti:     id,
       kategori: typeData.kategori,
       subkategori: typeData.subkategori,
+      kategori_kombinasi_1: typeData.kategori_kombinasi_1,
+      kategori_kombinasi_2: typeData.kategori_kombinasi_2,
       jumlah_unit: jumlah_unit || 1,
       jumlah_kapling: jumlah_kapling || null,
     }]);
 
-    await persistUploadedPhotos(conn, id, req.files || []);
+    ({ createdFilePaths } = await persistUploadedPhotos(conn, id, req.files || []));
 
     await conn.query(
       "INSERT INTO log_aktivitas (id_log, id_user, id_properti, aksi, detail) VALUES (?,?,?,?,?)",
@@ -486,6 +505,7 @@ exports.create = async (req, res) => {
     await conn.rollback();
     await cleanupTemporaryUploads(req.files || []).catch(() => {});
     console.error('ERROR in propertiController.create:', err && err.stack ? err.stack : err);
+    await removeFilesIfPresent(createdFilePaths).catch(() => {});
     res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   } finally { conn.release(); }
 };
@@ -494,6 +514,7 @@ exports.create = async (req, res) => {
 exports.update = async (req, res) => {
   const conn = await pool.getConnection();
   let replacedPhotoUrls = [];
+  let createdFilePaths = [];
   try {
     await conn.beginTransaction();
     const propertiId = req.params.id;
@@ -523,14 +544,15 @@ exports.update = async (req, res) => {
     }
 
     const { kategori, subkategori, jumlah_unit, jumlah_kapling } = req.body;
-    const hasTypeUpdate = [kategori, subkategori, jumlah_unit, jumlah_kapling]
+    const hasTypeUpdate = [kategori, subkategori, jumlah_unit, jumlah_kapling, req.body.kategori_kombinasi_1, req.body.kategori_kombinasi_2]
       .some((value) => value !== undefined);
+    validatePropertyInput(updateData);
     let existingType = null;
     let normalizedType = null;
 
     if (hasTypeUpdate) {
       const [typeRows] = await conn.query(
-        "SELECT id_tipeproperti, kategori, subkategori FROM tipe_properti WHERE id_properti = ? ORDER BY id_tipeproperti ASC LIMIT 1",
+        "SELECT * FROM tipe_properti WHERE id_properti = ? ORDER BY id_tipeproperti ASC LIMIT 1",
         [propertiId]
       );
       existingType = typeRows[0] || null;
@@ -542,6 +564,9 @@ exports.update = async (req, res) => {
         error.statusCode = 400;
         throw error;
       }
+      Object.assign(normalizedType, normalizeCombination(nextKategori,
+        req.body.kategori_kombinasi_1 ?? existingType?.kategori_kombinasi_1,
+        req.body.kategori_kombinasi_2 ?? existingType?.kategori_kombinasi_2));
     }
 
     if (req.body.nama_vendor !== undefined) {
@@ -569,13 +594,16 @@ exports.update = async (req, res) => {
       }
     }
 
-    const boolFields = ['spanduk', 'kunci', 'feed', 'sudah_share'];
+    const boolFields = ['spanduk', 'kunci', 'sudah_share'];
     for (const field of boolFields) {
       if (updateData[field] !== undefined) {
         updateData[field] = toSqlBoolean(updateData[field]);
       }
     }
 
+    if (Object.prototype.hasOwnProperty.call(updateData, "no_folder")) {
+      updateData.no_folder = String(updateData.no_folder || "").trim() || null;
+    }
     const nextProperty = { ...existingProperty, ...updateData };
     const missingField = findMissingRequiredPropertyField(nextProperty);
     if (missingField) {
@@ -612,6 +640,7 @@ exports.update = async (req, res) => {
       if (match) acc[column.Field] = Number(match[1]);
       return acc;
     }, {});
+    validateColumnLengths(updateData, columnLimits);
     const safeUpdateData = sanitizeForColumnLimits(updateData, columnLimits);
 
     const [result] = await conn.query(
@@ -627,6 +656,10 @@ exports.update = async (req, res) => {
     if (hasTypeUpdate && existingType) {
       const tipeUpdates = [];
       const tipeParams = [];
+      for (const field of ["kategori_kombinasi_1", "kategori_kombinasi_2"]) {
+        tipeUpdates.push(`${field}=?`);
+        tipeParams.push(normalizedType[field]);
+      }
       if (normalizedType.kategori !== existingType.kategori) {
         tipeUpdates.push("kategori=?");
         tipeParams.push(normalizedType.kategori);
@@ -656,6 +689,8 @@ exports.update = async (req, res) => {
         id_properti: propertiId,
         kategori: normalizedType.kategori,
         subkategori: normalizedType.subkategori,
+        kategori_kombinasi_1: normalizedType.kategori_kombinasi_1,
+        kategori_kombinasi_2: normalizedType.kategori_kombinasi_2,
         jumlah_unit: jumlah_unit || 1,
         jumlah_kapling: jumlah_kapling || null,
       }]);
@@ -665,6 +700,7 @@ exports.update = async (req, res) => {
       replaceExisting: isTruthyRequestValue(req.body.replace_fotos),
     });
     replacedPhotoUrls = photoMutation.replacedPhotoUrls;
+    createdFilePaths = photoMutation.createdFilePaths;
 
     await conn.query(
       "INSERT INTO log_aktivitas (id_log, id_user, id_properti, aksi, detail) VALUES (?,?,?,?,?)",
@@ -678,6 +714,7 @@ exports.update = async (req, res) => {
     res.json({ message: "Properti berhasil diperbarui" });
   } catch (err) {
     await conn.rollback();
+    await removeFilesIfPresent(createdFilePaths).catch(() => {});
     await cleanupTemporaryUploads(req.files || []).catch(() => {});
     console.error(err);
     res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
@@ -690,20 +727,26 @@ exports.remove = async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    const dir = `uploads/properti/${req.params.id}`;
-    try { await fs.rm(dir, { recursive: true }); } catch {}
+    const [properties] = await conn.query("SELECT id_properti FROM properti WHERE id_properti=? FOR UPDATE", [req.params.id]);
+    if (!properties.length) throw Object.assign(new Error("Properti tidak ditemukan"), { statusCode: 404 });
+    const [transactions] = await conn.query("SELECT id_transaksi FROM transaksi WHERE id_properti=? LIMIT 1", [req.params.id]);
+    if (transactions.length) throw Object.assign(new Error("Properti dengan riwayat transaksi tidak dapat dihapus"), { statusCode: 409 });
+    const [photos] = await conn.query("SELECT url_foto FROM foto_properti WHERE id_properti=?", [req.params.id]);
 
     await conn.query("DELETE FROM foto_properti  WHERE id_properti = ?", [req.params.id]);
     await conn.query("DELETE FROM tipe_properti  WHERE id_properti = ?", [req.params.id]);
-    await conn.query("DELETE FROM log_aktivitas  WHERE id_properti = ?", [req.params.id]);
+    await conn.query("UPDATE log_aktivitas SET id_properti=NULL WHERE id_properti = ?", [req.params.id]);
     await conn.query("DELETE FROM properti       WHERE id_properti = ?", [req.params.id]);
+    await conn.query("INSERT INTO log_aktivitas (id_log, id_user, aksi, detail) VALUES (?,?,?,?)",
+      [crypto.randomUUID(), req.user.id, "hapus", `Properti ${req.params.id} dihapus`]);
 
     await conn.commit();
+    await removeStoredPropertyPhotos(req.params.id, photos.map(photo => photo.url_foto)).catch(() => console.error("Gagal membersihkan foto properti yang dihapus"));
     res.json({ message: "Properti berhasil dihapus" });
   } catch (err) {
     await conn.rollback();
     console.error(err);
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   } finally { conn.release(); }
 };
 
@@ -713,7 +756,7 @@ exports.getShareText = async (req, res) => {
     // ✅ ALIAS p.id_properti AS id
     const [rows] = await pool.query(`
       SELECT p.id_properti AS id, p.*,
-        tp.kategori, tp.subkategori,
+        tp.kategori, tp.subkategori, tp.kategori_kombinasi_1, tp.kategori_kombinasi_2,
         sharer.nama AS shared_by_nama, sharer.no_hp AS shared_by_hp
       FROM properti p
       LEFT JOIN tipe_properti tp ON tp.id_properti = p.id_properti
@@ -733,7 +776,7 @@ exports.getShareText = async (req, res) => {
     const isForRent = ["disewa", "dijual_dan_disewa"].includes(p.jenis_penawaran);
 
     const text = [
-      `*${kategoriLabel(p.kategori, p.subkategori).toUpperCase()} ${offerLabel}*`,
+      `*${kategoriLabel(p.kategori, p.subkategori, p.kategori_kombinasi_1, p.kategori_kombinasi_2).toUpperCase()} ${offerLabel}*`,
       `📍 ${p.nama_jalan}, ${p.kota}`,
       isForSale && fmt(p.harga_jual) ? `💰 Harga Jual: ${fmt(p.harga_jual)}` : null,
       isForRent && fmt(p.harga_sewa) ? `🏠 Sewa: ${fmt(p.harga_sewa)}/thn` : null,
@@ -745,13 +788,13 @@ exports.getShareText = async (req, res) => {
       `🏙 ${p.kota}`,
       "",
       "Untuk informasi dan jadwal survei:",
-      p.shared_by_nama ? "Marketing: " + p.shared_by_nama + (p.shared_by_hp ? " (" + p.shared_by_hp + ")" : "") : "Hubungi Philip Real Estate",
+      p.shared_by_nama ? p.shared_by_nama + (p.shared_by_hp ? " (" + p.shared_by_hp + ")" : "") : "Hubungi PHILIP REAL ESTATE",
     ].filter(Boolean).join("\n");
 
     res.json({ shareText: text, waLink: `https://wa.me/?text=${encodeURIComponent(text)}` });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   }
 };
 
@@ -761,14 +804,20 @@ exports.createTransaksi = async (req, res) => {
   try {
     await conn.beginTransaction();
     const { jenis, harga_aktual, komisi_persen, catatan, tanggal_transaksi } = req.body;
+    if (!["terjual", "tersewa"].includes(jenis)) throw validation.badRequest("Jenis transaksi tidak valid");
+    const price = validation.number(harga_aktual, "Harga aktual", { min: 0.01, required: true });
+    const kp = komisi_persen === undefined || komisi_persen === null || komisi_persen === ""
+      ? (jenis === "terjual" ? 2 : 5) : validation.number(komisi_persen, "Komisi", { max: 100 });
+    const notes = validation.text(catatan, "Catatan", { max: 2000 });
+    if (tanggal_transaksi) validation.date(tanggal_transaksi, "Tanggal transaksi");
 
     const [prop] = await conn.query(
-      "SELECT id_properti FROM properti WHERE id_properti = ?", [req.params.id]
+      "SELECT id_properti, status_unit FROM properti WHERE id_properti = ? FOR UPDATE", [req.params.id]
     );
-    if (!prop.length) return res.status(404).json({ message: "Properti tidak ditemukan" });
+    if (!prop.length) throw Object.assign(new Error("Properti tidak ditemukan"), { statusCode: 404 });
+    if (!["tersedia", "negosiasi"].includes(prop[0].status_unit)) throw Object.assign(new Error("Properti sudah terjual atau tersewa. Periksa status sebelum mencatat transaksi baru."), { statusCode: 409 });
 
-    const kp = parseFloat(komisi_persen) || (jenis === "terjual" ? 2 : 5);
-    const kn = Math.round(parseFloat(harga_aktual) * kp / 100);
+    const kn = Math.round(price * kp / 100);
 
     const transaksiId = crypto.randomUUID();
     await conn.query("INSERT INTO transaksi SET ?", [{
@@ -777,10 +826,10 @@ exports.createTransaksi = async (req, res) => {
       dicatat_oleh:      req.user.id,
       tanggal_transaksi: tanggal_transaksi || new Date().toISOString().slice(0,10),
       jenis,
-      harga_aktual:      parseFloat(harga_aktual),
+      harga_aktual:      price,
       komisi_persen:     kp,
       komisi_nominal:    kn,
-      catatan:           catatan || ""
+      catatan:           notes
     }]);
 
     const newStatus = jenis === "terjual" ? "terjual" : "tersewa";
@@ -800,7 +849,7 @@ exports.createTransaksi = async (req, res) => {
   } catch (err) {
     await conn.rollback();
     console.error(err);
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   } finally { conn.release(); }
 };
 
@@ -815,7 +864,7 @@ exports.getTransaksi = async (req, res) => {
       ORDER BY t.created_at DESC`, [req.params.id]);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   }
 };
 
@@ -825,21 +874,44 @@ exports.reorderFotos = async (req, res) => {
   try {
     await conn.beginTransaction();
     const { orders } = req.body;
-    for (const item of orders) {
+    if (!Array.isArray(orders) || !orders.length || orders.length > 10 || orders.some(item => !item || typeof item.id_fotoproperti !== "string") || new Set(orders.map(item => item.id_fotoproperti)).size !== orders.length) throw validation.badRequest("Urutan foto tidak valid");
+    const [photos] = await conn.query("SELECT id_fotoproperti FROM foto_properti WHERE id_properti=? FOR UPDATE", [req.params.id]);
+    if (photos.length !== orders.length || photos.some(photo => !orders.some(item => item.id_fotoproperti === photo.id_fotoproperti))) throw validation.badRequest("Daftar foto telah berubah. Muat ulang sebelum menyimpan urutan.");
+    for (const [index, item] of orders.entries()) {
       await conn.query(
         "UPDATE foto_properti SET urutan=?, is_cover=? WHERE id_fotoproperti=? AND id_properti=?",
-        [item.urutan, item.is_cover ? 1 : 0, item.id_fotoproperti, req.params.id]
+        [index + 1, index === 0 ? 1 : 0, item.id_fotoproperti, req.params.id]
       );
     }
     await conn.commit();
     res.json({ message: "Urutan foto berhasil diperbarui" });
   } catch (err) {
     await conn.rollback();
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   } finally { conn.release(); }
 };
 
 // ─── DELETE /api/properti/:id/fotos/:fotoId ──────────────────
+exports.downloadFoto = async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT url_foto, watermark_version FROM foto_properti WHERE id_fotoproperti=? AND id_properti=?",
+      [req.params.fotoId, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ message: "Foto tidak ditemukan" });
+    const photo = rows[0];
+    const filePath = path.join(propertyPhotoDir(req.params.id), path.basename(photo.url_foto));
+    const buffer = Number(photo.watermark_version) >= 1
+      ? await fs.readFile(filePath)
+      : await watermarkPropertyPhoto(filePath);
+    res.set("Content-Type", "image/jpeg");
+    res.attachment(`foto-${req.params.fotoId}.jpg`);
+    res.send(buffer);
+  } catch (error) {
+    res.status(error.code === "ENOENT" ? 404 : (error.statusCode || 500)).json({ message: "Gagal mengunduh foto properti" });
+  }
+};
+
 exports.deleteFoto = async (req, res) => {
   const conn = await pool.getConnection();
   try {
@@ -879,3 +951,5 @@ exports.deleteFoto = async (req, res) => {
     res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   } finally { conn.release(); }
 };
+
+module.exports = require("../utils/safeControllers")(module.exports);

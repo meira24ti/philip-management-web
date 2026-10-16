@@ -55,7 +55,7 @@ export default function Register() {
       <h2 className="text-2xl font-semibold text-gray-700 mb-2 text-center">
         Daftarkan Staff Baru
       </h2>
-      <p className="text-xs text-gray-400 text-center mb-6">
+      <p className="text-xs text-gray-600 text-center mb-6">
         Admin dan Direktur dapat mendaftarkan staff baru ke sistem
       </p>
  
@@ -77,26 +77,26 @@ export default function Register() {
  
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap *</label>
-          <input type="text" className={inputCls} placeholder="Nama lengkap staff"
+          <label htmlFor="register-nama" className="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap *</label>
+          <input id="register-nama" type="text" className={inputCls} placeholder="Nama lengkap staff"
             value={form.nama} onChange={e=>setForm(f=>({...f,nama:e.target.value}))} required />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-          <input type="email" className={inputCls} placeholder="email@philip.co.id"
+          <label htmlFor="register-email" className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+          <input id="register-email" type="email" className={inputCls} placeholder="email@philip.co.id"
             value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} required />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Nomor HP *</label>
-          <input type="tel" className={inputCls} placeholder="08xxxxxxxxxx"
+          <label htmlFor="register-phone" className="block text-sm font-medium text-gray-700 mb-1">Nomor HP *</label>
+          <input id="register-phone" type="tel" className={inputCls} placeholder="08xxxxxxxxxx"
             value={form.no_hp} onChange={e=>setForm(f=>({...f,no_hp:e.target.value}))} required />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Role *</label>
-          <select className={inputCls} value={form.role}
+          <label htmlFor="register-role" className="block text-sm font-medium text-gray-700 mb-1">Role *</label>
+          <select id="register-role" className={inputCls} value={form.role}
             onChange={e=>setForm(f=>({...f,role:e.target.value}))}>
-            <option value="direktur">Direktur</option>
-            <option value="admin">Admin</option>
+            {role === "direktur" && <option value="direktur">Direktur</option>}
+            {role === "direktur" && <option value="admin">Admin</option>}
             <option value="marketing">Marketing</option>
           </select>
         </div>

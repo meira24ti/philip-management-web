@@ -1,0 +1,7 @@
+# Local database runtime, data files, TLS private keys and credentials.
+/mysql-8/
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key

@@ -6,6 +6,8 @@ const fs = require("fs").promises;
 const fsSync = require("fs");
 const path = require("path");
 const { buildLaporanHTML, enrichReportData } = require("../utils/reportBuilder");
+const reportDirectory = path.join(__dirname, "../uploads/laporan");
+let generating = false;
 
 function findChromeExecutable() {
   if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
@@ -30,13 +32,16 @@ exports.getAll = async (req, res) => {
       ORDER BY l.created_at DESC`);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   }
 };
 
 exports.generate = async (req, res) => {
-  const { tipe, periodeStart, periodeEnd } = req.body;
+  if (generating) return res.status(429).set("Retry-After", "30").json({ message: "Laporan sedang diproses. Silakan coba kembali sebentar lagi." });
+  generating = true;
+  const { tipe, periodeStart, periodeEnd } = req.body || {};
   let browser;
+  let savedPath;
   try {
     const validTypes = new Set(["penjualan", "stok", "statistik"]);
     const validDate = (value) => {
@@ -170,8 +175,8 @@ exports.generate = async (req, res) => {
     data = enrichReportData(tipe, data, periodeStart, periodeEnd);
     const html = buildLaporanHTML(judul, tipe, data, periodeStart, periodeEnd);
 
-    const browserOptions = { headless: true };
-    if (process.platform !== "win32") {
+    const browserOptions = { headless: true, timeout: 30000 };
+    if (process.env.PUPPETEER_NO_SANDBOX === "true") {
       browserOptions.args = ["--no-sandbox", "--disable-setuid-sandbox"];
     }
     const chromePath = findChromeExecutable();
@@ -181,17 +186,21 @@ exports.generate = async (req, res) => {
 
     browser = await puppeteer.launch(browserOptions);
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setJavaScriptEnabled(false);
+    await page.setRequestInterception(true);
+    page.on("request", request => request.url().startsWith("data:") ? request.continue() : request.abort());
+    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 15000 });
     const pdfBuffer = await page.pdf({
-      format: "A4", printBackground: true,
+      format: "A4", printBackground: true, timeout: 30000,
       margin: { top: "20mm", right: "15mm", bottom: "20mm", left: "15mm" }
     });
     await browser.close();
     browser = null;
 
-    await fs.mkdir("uploads/laporan", { recursive: true });
-    const filename = `laporan-${tipe}-${Date.now()}.pdf`;
-    await fs.writeFile(`uploads/laporan/${filename}`, pdfBuffer);
+    await fs.mkdir(reportDirectory, { recursive: true });
+    const filename = `laporan-${tipe}-${crypto.randomUUID()}.pdf`;
+    savedPath = path.join(reportDirectory, filename);
+    await fs.writeFile(savedPath, pdfBuffer);
 
     // ✅ Gunakan id_laporan sesuai schema
     const id = crypto.randomUUID();
@@ -205,8 +214,10 @@ exports.generate = async (req, res) => {
       file_pdf_url: `/uploads/laporan/${filename}`
     }]);
 
+    savedPath = null;
     res.json({ message: "Laporan berhasil dibuat", id, downloadUrl: `/uploads/laporan/${filename}` });
   } catch (err) {
+    if (savedPath) await fs.unlink(savedPath).catch(() => {});
     console.error(err);
     res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Gagal generate laporan" });
   } finally {
@@ -215,6 +226,7 @@ exports.generate = async (req, res) => {
         console.error("Gagal menutup browser PDF:", closeError);
       });
     }
+    generating = false;
   }
 };
 
@@ -226,8 +238,8 @@ exports.download = async (req, res) => {
     if (!rows.length) return res.status(404).json({ message: "Laporan tidak ditemukan" });
 
     const fileUrl = rows[0].file_pdf_url;
-    const relativePath = fileUrl.replace(/^\//, "");
-    const filePath = path.join(__dirname, "..", relativePath);
+    if (typeof fileUrl !== "string" || !/^\/uploads\/laporan\/[a-zA-Z0-9_-]+\.pdf$/.test(fileUrl)) return res.status(404).json({ message: "File laporan tidak ditemukan" });
+    const filePath = path.join(reportDirectory, path.basename(fileUrl));
 
     if (!(await fs.access(filePath).then(() => true).catch(() => false))) {
       return res.status(404).json({ message: "File laporan tidak ditemukan" });
@@ -243,6 +255,8 @@ exports.download = async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server error" });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : "Server error" });
   }
 };
+
+module.exports = require("../utils/safeControllers")(module.exports);

@@ -8,8 +8,8 @@ export default function AuthLayout() {
       <div className="w-full max-w-md rounded-2xl border border-red-100/80 bg-white/95 p-5 shadow-xl shadow-red-950/10 backdrop-blur sm:rounded-3xl sm:p-8">
 
         <div className="flex items-center justify-center mb-6">
-          <h1 className="text-4xl font-extrabold text-red-900">
-            Philip<span className="text-red-500">.</span>
+          <h1 className="company-name text-center text-2xl text-red-900">
+            PHILIP REAL ESTATE
           </h1>
         </div>
 

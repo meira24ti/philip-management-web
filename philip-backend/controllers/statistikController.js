@@ -296,3 +296,5 @@ async function getTrendByPeriod(req, res) {
 
 exports.getRingkasan = getStatistics;
 exports.getByPeriode = getTrendByPeriod;
+
+module.exports = require("../utils/safeControllers")(module.exports);
